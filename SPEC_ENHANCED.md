@@ -1,6 +1,6 @@
 # Blink Protocol (beta4) – Python Implementation Specification (Enhanced)
 
-**Status**: Draft (implementation-ready)
+**Status**: In progress – Phase 1 bootstrapping underway (runtime/core codec implemented on 2026‑01‑16)
 **Audience**: Engineers building/maintaining Blink in Python within `py-learn`
 **Scope**: Schema parsing/resolution, Compact Binary codec, Tag + JSON + XML formats, Dynamic Schema Exchange, optional Native codec, repo-compliant workflows
 
@@ -297,3 +297,12 @@ Each phase should land as incremental PRs respecting container + testing workflo
 ## 14. Licensing
 
 Specification derives from Blink beta4 public docs. Confirm downstream licensing compatibility before distributing compiled schemas or binaries; document any third-party assets introduced (schemas, fixtures) in `LICENSE-THIRD-PARTY` if required.
+
+---
+
+## 15. Current Status (2026-01-16)
+
+- **Runtime foundation ready**: Added `blink.runtime` with error types, registry, and value containers (`DecimalValue`, `StaticGroupValue`, `Message`) to support schema-driven encoding/decoding.
+- **Schema model bootstrapped**: Implemented the core type system primitives (`QName`, primitive/bin/sequence refs, enums, groups) used by upcoming parser/resolver work.
+- **Compact Binary progress**: Completed stop-bit VLC encode/decode helpers with NULL handling; comprehensive pytest coverage added under `projects/pyblink/tests/test_vlc.py`.
+- **Testing wired**: Devcontainer pytest invocation (`python3 -m pytest projects/pyblink/tests -q`) passes, confirming the package layout is importable and VLC edges behave per spec.

@@ -58,6 +58,7 @@ def test_encode_decode_message_round_trip():
                 "Currency": "USD",
                 "Exchange": "NASDAQ",
             },
+            "Routing": {"Venue": "XNAS", "Desk": "Alpha"},
             "Price": DecimalValue(exponent=-2, mantissa=15005),
             "Quantity": 100,
             "Side": "Buy",
@@ -73,3 +74,120 @@ def test_encode_decode_message_round_trip():
     assert decoded.fields["Side"] == "Buy"
     instrument = decoded.fields["Instrument"]
     assert instrument["Symbol"] == "AAPL"
+    routing = decoded.fields["Routing"]
+    assert routing["Venue"] == "XNAS"
+
+
+def test_encode_decode_dynamic_group():
+    root = Path(__file__).resolve().parents[1]
+    registry = TypeRegistry.from_schema_file(root / "schema" / "examples" / "trading.blink")
+    order = Message(
+        type_name=QName("Trading", "AlgoOrder"),
+        fields={
+            "Instrument": {
+                "Symbol": "AAPL",
+                "Product": "EQUITY",
+                "Currency": "USD",
+                "Exchange": "NASDAQ",
+            },
+            "Routing": {"Venue": "XNAS"},
+            "Price": DecimalValue(exponent=-2, mantissa=15025),
+            "Quantity": 250,
+            "Side": "Sell",
+            "Status": "Working",
+            "Strategy": "TWAP",
+        },
+    )
+    event = Message(
+        type_name=QName("Trading", "OrderEvent"),
+        fields={
+            "Payload": order,
+            "EventType": "Modify",
+        },
+    )
+    encoded = compact.encode_message(event, registry)
+    decoded, _ = compact.decode_message(encoded, registry=registry)
+    payload = decoded.fields["Payload"]
+    assert isinstance(payload, Message)
+    assert payload.type_name.name == "AlgoOrder"
+    assert payload.fields["Strategy"] == "TWAP"
+
+
+def test_encode_decode_dynamic_sequence():
+    root = Path(__file__).resolve().parents[1]
+    registry = TypeRegistry.from_schema_file(root / "schema" / "examples" / "trading.blink")
+
+    orders = []
+    for symbol in ["AAPL", "MSFT"]:
+        orders.append(
+            Message(
+                type_name=QName("Trading", "Order"),
+                fields={
+                    "Instrument": {
+                        "Symbol": symbol,
+                        "Product": "EQUITY",
+                        "Currency": "USD",
+                        "Exchange": "NASDAQ",
+                    },
+                    "Routing": None,
+                    "Price": DecimalValue(exponent=-2, mantissa=12000),
+                    "Quantity": 10,
+                    "Side": "Sell",
+                },
+            )
+        )
+
+    bulk = Message(
+        type_name=QName("Trading", "BulkOrder"),
+        fields={"Orders": orders},
+    )
+
+    encoded = compact.encode_message(bulk, registry)
+    decoded, _ = compact.decode_message(encoded, registry=registry)
+    decoded_orders = decoded.fields["Orders"]
+    assert isinstance(decoded_orders, list)
+    assert decoded_orders[0].fields["Instrument"]["Symbol"] == "AAPL"
+
+
+def test_encode_decode_extensions():
+    root = Path(__file__).resolve().parents[1]
+    registry = TypeRegistry.from_schema_file(root / "schema" / "examples" / "trading.blink")
+    base_order = Message(
+        type_name=QName("Trading", "Order"),
+        fields={
+            "Instrument": {
+                "Symbol": "AAPL",
+                "Product": "EQUITY",
+                "Currency": "USD",
+                "Exchange": "NASDAQ",
+            },
+            "Price": DecimalValue(exponent=-2, mantissa=10000),
+            "Quantity": 1,
+            "Side": "Buy",
+        },
+    )
+    event = Message(
+        type_name=QName("Trading", "OrderEvent"),
+        fields={"Payload": base_order, "EventType": "Ack"},
+        extensions=(
+            Message(
+                type_name=QName("Trading", "Order"),
+                fields={
+                    "Instrument": {
+                        "Symbol": "AAPL",
+                        "Product": "EQUITY",
+                        "Currency": "USD",
+                        "Exchange": "NASDAQ",
+                    },
+                    "Price": DecimalValue(exponent=-2, mantissa=10050),
+                    "Quantity": 1,
+                    "Side": "Buy",
+                    "Status": "Filled",
+                },
+            ),
+        ),
+    )
+    encoded = compact.encode_message(event, registry)
+    decoded, _ = compact.decode_message(encoded, registry=registry)
+    assert decoded.extensions
+    assert decoded.extensions[0].fields["Status"] == "Filled"

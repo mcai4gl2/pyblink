@@ -10,12 +10,20 @@ Instrument/100 ->
   string Currency,
   string Exchange?
 
+Routing/150 ->
+  string Venue,
+  string Desk?
+
 Order/200 ->
   Instrument Instrument,
+  Routing Routing?,
   decimal Price,
   u32 Quantity,
   Side Side,
   string Status?
+
+AlgoOrder/201 : Order ->
+  string Strategy
 
 Trade/300 ->
   Order Order,
@@ -29,3 +37,11 @@ Quote/400 ->
   decimal Ask?,
   u32 BidSize?,
   u32 AskSize?
+
+OrderEvent/500 ->
+  Order* Payload,
+  string EventType,
+  object [] AuditTrail?
+
+BulkOrder/450 ->
+  Order* [] Orders

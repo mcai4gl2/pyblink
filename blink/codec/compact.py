@@ -14,6 +14,7 @@ from ..schema.model import (
     EnumType,
     FieldDef,
     GroupDef,
+    QName,
     ObjectType,
     PrimitiveKind,
     PrimitiveType,
@@ -108,12 +109,13 @@ def iter_frames(
 
 
 def encode_message(message: Message, registry: TypeRegistry) -> bytes:
-    """Encode ``message`` (fields only) and wrap it in a Compact Binary frame."""
+    """Encode ``message`` (fields + extensions) and wrap it in a Compact Binary frame."""
 
     group = registry.get_group_by_name(message.type_name)
     if group.type_id is None:
         raise EncodeError(f"Group {group.name} is missing a type id and cannot be encoded")
     payload = _encode_group_instance(group, message.fields, registry)
+    payload += _encode_extensions(message.extensions, registry, group.name.namespace)
     return encode_frame(group.type_id, payload)
 
 
@@ -132,26 +134,36 @@ def decode_message(
 
     frame, new_offset = decode_frame(buffer, offset, registry=registry, strict=strict)
     group = frame.group or registry.get_group_by_id(frame.type_id)
-    fields, consumed = _decode_group_fields(group, memoryview(frame.payload), 0, registry)
-    if consumed != len(frame.payload):
-        raise DecodeError("Trailing bytes inside frame payload")
-    message = Message(type_name=group.name, fields=fields)
+    fields, cursor = _decode_group_fields(group, memoryview(frame.payload), 0, registry)
+    extensions: Tuple[Message, ...] = tuple()
+    if cursor < len(frame.payload):
+        extensions = tuple(_decode_extensions(memoryview(frame.payload)[cursor:], registry))
+    message = Message(type_name=group.name, fields=fields, extensions=extensions)
     return message, new_offset
 
 
 def _encode_group_instance(
-    group: GroupDef, values: Dict[str, object], registry: TypeRegistry, *, is_optional: bool = False
+    group: GroupDef, values: Dict[str, object], registry: TypeRegistry
 ) -> bytes:
     buffer = bytearray()
+    namespace = group.name.namespace
     for field in group.all_fields():
         value = values.get(field.name)
         if value is None and not field.optional:
             raise EncodeError(f"Missing required field {field.name} for {group.name}")
-        buffer.extend(_encode_type(field.type_ref, value, field.optional, registry))
+        buffer.extend(
+            _encode_type(field.type_ref, value, field.optional, registry, namespace)
+        )
     return bytes(buffer)
 
 
-def _encode_type(type_ref: TypeRef, value, optional: bool, registry: TypeRegistry) -> bytes:
+def _encode_type(
+    type_ref: TypeRef,
+    value,
+    optional: bool,
+    registry: TypeRegistry,
+    default_namespace: str | None,
+) -> bytes:
     if isinstance(type_ref, PrimitiveType):
         return _encode_primitive(type_ref.primitive, value, optional)
     if isinstance(type_ref, BinaryType):
@@ -159,13 +171,15 @@ def _encode_type(type_ref: TypeRef, value, optional: bool, registry: TypeRegistr
     if isinstance(type_ref, EnumType):
         return _encode_enum(type_ref, value, optional)
     if isinstance(type_ref, SequenceType):
-        return _encode_sequence(type_ref, value, optional, registry)
+        return _encode_sequence(type_ref, value, optional, registry, default_namespace)
     if isinstance(type_ref, StaticGroupRef):
         return _encode_static_group(type_ref.group, value, optional, registry)
     if isinstance(type_ref, DynamicGroupRef):
-        raise EncodeError("Dynamic group encoding is not implemented yet")
+        return _encode_dynamic_group(
+            type_ref.group, value, optional, registry, default_namespace
+        )
     if isinstance(type_ref, ObjectType):
-        raise EncodeError("Object type encoding is not implemented yet")
+        return _encode_object(value, optional, registry, default_namespace)
     raise EncodeError(f"Unsupported field type {type_ref}")
 
 
@@ -227,7 +241,11 @@ def _encode_enum(enum: EnumType, value, optional: bool) -> bytes:
 
 
 def _encode_sequence(
-    sequence: SequenceType, value, optional: bool, registry: TypeRegistry
+    sequence: SequenceType,
+    value,
+    optional: bool,
+    registry: TypeRegistry,
+    default_namespace: str | None,
 ) -> bytes:
     if value is None:
         if not optional:
@@ -238,7 +256,9 @@ def _encode_sequence(
     buffer = bytearray()
     buffer.extend(encode_vlc(len(value)))
     for item in value:
-        buffer.extend(_encode_type(sequence.element_type, item, False, registry))
+        buffer.extend(
+            _encode_type(sequence.element_type, item, False, registry, default_namespace)
+        )
     return bytes(buffer)
 
 
@@ -247,7 +267,7 @@ def _encode_static_group(
 ) -> bytes:
     if value is None:
         if optional:
-            raise EncodeError("Optional static group encoding is not implemented")
+            return bytes([0xC0])
         raise EncodeError(f"Static group {group.name} requires a value")
     if isinstance(value, StaticGroupValue):
         fields = value.fields
@@ -255,7 +275,73 @@ def _encode_static_group(
         fields = value
     else:
         raise EncodeError("Static group fields must be dict or StaticGroupValue")
-    return _encode_group_instance(group, fields, registry)
+    encoded = _encode_group_instance(group, fields, registry)
+    if optional:
+        return bytes([0x01]) + encoded
+    return encoded
+
+
+def _encode_dynamic_group(
+    base_group: GroupDef,
+    value,
+    optional: bool,
+    registry: TypeRegistry,
+    default_namespace: str | None,
+) -> bytes:
+    if value is None:
+        if optional:
+            return encode_vlc(None)
+        raise EncodeError("Dynamic group requires a value")
+    if isinstance(value, Message):
+        type_name = value.type_name
+        fields = value.fields
+    elif isinstance(value, dict):
+        type_hint = value.get("$type")
+        if type_hint:
+            qname = QName.parse(str(type_hint), default_namespace or base_group.name.namespace)
+        else:
+            qname = base_group.name
+        type_name = qname
+        fields = {k: v for k, v in value.items() if k != "$type"}
+    else:
+        raise EncodeError("Dynamic group expects a Message or dict value")
+    if isinstance(type_name, QName):
+        qname = type_name
+    else:
+        qname = QName.parse(str(type_name), base_group.name.namespace)
+    group = registry.get_group_by_name(qname)
+    if group.type_id is None:
+        raise EncodeError(f"Dynamic group {group.name} is missing a type id")
+    payload = _encode_group_instance(group, fields, registry)
+    return encode_frame(group.type_id, payload)
+
+
+def _encode_object(
+    value,
+    optional: bool,
+    registry: TypeRegistry,
+    default_namespace: str | None,
+) -> bytes:
+    if value is None:
+        if optional:
+            return encode_vlc(None)
+        raise EncodeError("Object field requires a value")
+    if isinstance(value, Message):
+        message = value
+    elif isinstance(value, dict):
+        type_hint = value.get("$type")
+        if not type_hint:
+            raise EncodeError("Object entries must include '$type'")
+        qname = QName.parse(str(type_hint), default_namespace)
+        fields = {k: v for k, v in value.items() if k != "$type"}
+        message = Message(type_name=qname, fields=fields)
+    else:
+        raise EncodeError("Object entries must be dicts or Message instances")
+    group = registry.get_group_by_name(message.type_name)
+    if group.type_id is None:
+        raise EncodeError(f"Object entry {group.name} missing type id")
+    payload = _encode_group_instance(group, message.fields, registry)
+    return encode_frame(group.type_id, payload)
 
 
 def _decode_group_fields(
@@ -267,7 +353,9 @@ def _decode_group_fields(
     fields: Dict[str, object] = {}
     cursor = offset
     for field in group.all_fields():
-        value, cursor = _decode_type(field.type_ref, payload, cursor, field.optional, registry)
+        value, cursor = _decode_type(
+            field.type_ref, payload, cursor, field.optional, registry
+        )
         fields[field.name] = value
     return fields, cursor
 
@@ -294,16 +382,29 @@ def _decode_type(
             return None, cursor
         items = []
         for _ in range(size):
-            item, cursor = _decode_type(type_ref.element_type, payload, cursor, False, registry)
+            item, cursor = _decode_type(
+                type_ref.element_type, payload, cursor, False, registry
+            )
             items.append(item)
         return items, cursor
     if isinstance(type_ref, StaticGroupRef):
-        values, cursor = _decode_group_fields(type_ref.group, payload, offset, registry)
+        marker_offset = offset
+        if optional:
+            if marker_offset >= len(payload):
+                raise DecodeError("Missing static group presence byte")
+            marker = payload[marker_offset]
+            marker_offset += 1
+            if marker == 0xC0:
+                return None, marker_offset
+            if marker != 0x01:
+                raise DecodeError("Invalid presence byte for static group")
+        values, cursor = _decode_group_fields(type_ref.group, payload, marker_offset, registry)
         return StaticGroupValue(values), cursor
     if isinstance(type_ref, DynamicGroupRef):
-        raise DecodeError("Dynamic group decoding not implemented")
+        return _decode_dynamic_group(payload, offset, registry, optional)
     if isinstance(type_ref, ObjectType):
-        raise DecodeError("Object type decoding not implemented")
+        message, cursor = _decode_dynamic_group(payload, offset, registry, optional)
+        return message, cursor
     raise DecodeError(f"Unsupported type reference {type_ref}")
 
 
@@ -338,6 +439,47 @@ def _decode_binary(binary: BinaryType, payload: memoryview, offset: int):
     if binary.kind == "string":
         return data.decode("utf-8"), end
     return data, end
+
+
+def _decode_dynamic_group(
+    payload: memoryview, offset: int, registry: TypeRegistry, optional: bool
+) -> Tuple[Message | None, int]:
+    if optional and offset < len(payload) and payload[offset] == 0xC0:
+        return None, offset + 1
+    frame, end = decode_frame(payload, offset, registry=registry)
+    group = frame.group or registry.get_group_by_id(frame.type_id)
+    fields, consumed = _decode_group_fields(group, memoryview(frame.payload), 0, registry)
+    if consumed != len(frame.payload):
+        raise DecodeError("Trailing bytes in dynamic group payload")
+    message = Message(type_name=group.name, fields=fields)
+    return message, end
+
+
+def _encode_extensions(
+    extensions: Tuple[Message, ...],
+    registry: TypeRegistry,
+    default_namespace: str | None,
+) -> bytes:
+    if not extensions:
+        return b""
+    buffer = bytearray()
+    buffer.extend(encode_vlc(len(extensions)))
+    for extension in extensions:
+        group = registry.get_group_by_name(extension.type_name)
+        if group.type_id is None:
+            raise EncodeError(f"Extension group {group.name} missing type id")
+        payload = _encode_group_instance(group, extension.fields, registry)
+        buffer.extend(encode_frame(group.type_id, payload))
+    return bytes(buffer)
+
+
+def _decode_extensions(payload: memoryview, registry: TypeRegistry) -> Iterator[Message]:
+    count, cursor = decode_vlc(payload, 0)
+    if count is None:
+        raise DecodeError("Extension count cannot be NULL")
+    for _ in range(count):
+        message, cursor = _decode_dynamic_group(payload, cursor, registry, optional=False)
+        yield message
 
 
 __all__ = [

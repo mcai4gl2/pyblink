@@ -130,4 +130,4 @@ def test_type_registry_from_schema_file_examples():
         root / "schema" / "examples" / "trading.blink"
     )
     order = registry.get_group_by_name(QName("Trading", "Order"))
-    assert [field.name for field in order.fields[:3]] == ["Instrument", "Price", "Quantity"]
+    assert [field.name for field in order.fields[:3]] == ["Instrument", "Routing", "Price"]

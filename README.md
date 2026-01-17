@@ -27,4 +27,35 @@ You can also skip the intermediate `Schema` object:
 registry = TypeRegistry.from_schema_file("projects/pyblink/schema/examples/trading.blink")
 ```
 
-These helpers power upcoming codec work (e.g., Compact Binary framing) and keep schema loading consistent across tests and tooling.*** End Patch
+These helpers power upcoming codec work (e.g., Compact Binary framing) and keep schema loading consistent across tests and tooling.
+## Compact Binary Demo
+
+`blink.codec.compact` supports schema-aware `encode_message`/`decode_message`. Two helpers are available:
+
+1. Quick demo that builds a sample payload in code:
+   ```bash
+   docker exec -u vscode -w /workspaces/py-learn <container-id> python3 projects/pyblink/scripts/encode_trading_order.py
+   ```
+   This prints a hex-encoded `OrderEvent` built from in-memory data.
+
+2. JSON-driven CLI that accepts arbitrary payloads:
+   ```bash
+   docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
+     projects/pyblink/scripts/encode_payload.py \
+     --schema projects/pyblink/schema/examples/trading.blink \
+     --type Trading:OrderEvent \
+     --input projects/pyblink/schema/examples/order_event.json
+   ```
+
+   The CLI loads the schema, reads the JSON payload (which can include dynamic groups via `$type` and decimals via `{ "exponent": ..., "mantissa": ... }`), and prints the Compact Binary bytes. Use it as a starting point for integrating codec support into future tools.
+
+To decode Compact Binary back into JSON, use `scripts/decode_payload.py`:
+
+```bash
+docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
+  projects/pyblink/scripts/decode_payload.py \
+  --schema projects/pyblink/schema/examples/trading.blink \
+  --input /path/to/payload.bin
+```
+
+Add `--hex` if the input file contains a hex string instead of raw bytes.*** End Patch

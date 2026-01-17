@@ -1,0 +1,25 @@
+{
+  "$type": "Trading:OrderEvent",
+  "Payload": {
+    "$type": "Trading:AlgoOrder",
+    "Instrument": {
+      "Symbol": "AAPL",
+      "Product": "EQUITY",
+      "Currency": "USD",
+      "Exchange": "NASDAQ"
+    },
+    "Routing": {
+      "Venue": "XNAS",
+      "Desk": "AlphaTeam"
+    },
+    "Price": {"exponent": -2, "mantissa": 15425},
+    "Quantity": 1000,
+    "Side": "Buy",
+    "Status": "New",
+    "Strategy": "VWAP"
+  },
+  "EventType": "NewOrder",
+  "AuditTrail": [
+    {"$type": "Trading:Routing", "Venue": "XNAS", "Desk": "AlphaTeam"}
+  ]
+}

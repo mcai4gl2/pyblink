@@ -191,3 +191,17 @@ def test_encode_decode_extensions():
     decoded, _ = compact.decode_message(encoded, registry=registry)
     assert decoded.extensions
     assert decoded.extensions[0].fields["Status"] == "Filled"
+
+
+def test_blink_schema_group_decl_round_trip():
+    root = Path(__file__).resolve().parents[1]
+    registry = TypeRegistry.from_schema_file(root / "schema" / "blink.blink")
+    message = Message(
+        type_name=QName("Blink", "GroupDecl"),
+        fields={"Name": {"Ns": "Demo", "Name": "Order"}, "Id": 42},
+    )
+    encoded = compact.encode_message(message, registry)
+    decoded, _ = compact.decode_message(encoded, registry=registry)
+    ns_name = decoded.fields["Name"]
+    assert ns_name["Ns"] == "Demo"
+    assert ns_name["Name"] == "Order"

@@ -6,8 +6,39 @@ from pathlib import Path
 from typing import Dict, Iterable, Mapping, MutableMapping
 
 from ..schema.compiler import compile_schema, compile_schema_file
-from ..schema.model import GroupDef, QName, Schema
+from ..schema.model import FieldDef, GroupDef, PrimitiveType, PrimitiveKind, QName, Schema, SequenceType, BinaryType, EnumType, SequenceType, StaticGroupRef, DynamicGroupRef, TypeRef, BinaryType, EnumType, StaticGroupRef, DynamicGroupRef, SequenceType
 from .errors import RegistryError
+
+
+class SchemaRegistry:
+    """
+    Mutable registry that can apply schema transport messages (GroupDecl, GroupDef, etc.)
+    and lazily emit TypeRegistry instances for codecs.
+    """
+
+    def __init__(self, schema: Schema | None = None) -> None:
+        self._schema = schema or Schema(namespace=None)
+        self._type_registry = TypeRegistry(self._schema)
+
+    @property
+    def schema(self) -> Schema:
+        return self._schema
+
+    @property
+    def type_registry(self) -> TypeRegistry:
+        return self._type_registry
+
+    def apply_group_decl(self, name: Dict[str, str], type_id: int) -> GroupDef:
+        qname = QName(namespace=name.get("Ns"), name=name["Name"])
+        key = str(qname)
+        if key in self._schema.groups:
+            group = self._schema.groups[key]
+            group.type_id = type_id
+        else:
+            group = GroupDef(name=qname, type_id=type_id, fields=tuple())
+            self._schema.add_group(group)
+            self._type_registry.register_group(group)
+        return group
 
 
 class TypeRegistry:
@@ -79,4 +110,4 @@ class TypeRegistry:
         return cls(schema)
 
 
-__all__ = ["TypeRegistry"]
+__all__ = ["SchemaRegistry", "TypeRegistry"]

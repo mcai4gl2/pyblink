@@ -3,6 +3,7 @@
 import pytest
 
 from blink.runtime.errors import SchemaError
+from blink.schema import apply_incremental_annotations, parse_schema, resolve_schema
 from blink.schema.ast import (
     AnnotationAst,
     BinaryTypeRef,
@@ -17,7 +18,6 @@ from blink.schema.ast import (
     TypeDefAst,
 )
 from blink.schema.model import DynamicGroupRef, EnumType, PrimitiveKind, PrimitiveType, QName, SequenceType, StaticGroupRef
-from blink.schema.resolve import resolve_schema
 
 
 def test_schema_resolver_builds_groups_and_inheritance():
@@ -200,3 +200,25 @@ def test_schema_resolver_supports_type_definitions():
     field = next(iter(group.fields))
     assert isinstance(field.type_ref, PrimitiveType)
     assert field.type_ref.primitive == PrimitiveKind.DECIMAL
+
+
+def test_apply_incremental_annotations_updates_schema():
+    base_text = """
+    namespace Demo
+    Group ->
+        string Field
+    """
+    inc_text = """
+    namespace Demo
+    schema <- @version="1.0"
+    Group <- @doc="group-doc"
+    Group.Field <- @doc="field-doc"
+    """
+    schema = resolve_schema(parse_schema(base_text))
+    apply_incremental_annotations(schema, parse_schema(inc_text))
+
+    group = schema.get_group(QName("Demo", "Group"))
+    assert group.annotations[QName("Demo", "doc")] == "group-doc"
+    field = next(field for field in group.fields if field.name == "Field")
+    assert field.annotations[QName("Demo", "doc")] == "field-doc"
+    assert schema.annotations[QName("Demo", "version")] == "1.0"

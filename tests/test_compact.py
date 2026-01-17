@@ -8,6 +8,7 @@ from blink.codec import compact
 from blink.runtime.errors import DecodeError
 from blink.runtime.registry import TypeRegistry
 from blink.runtime.values import DecimalValue, Message
+from blink.schema import compile_schema
 from blink.schema.model import QName
 
 
@@ -191,6 +192,45 @@ def test_encode_decode_extensions():
     decoded, _ = compact.decode_message(encoded, registry=registry)
     assert decoded.extensions
     assert decoded.extensions[0].fields["Status"] == "Filled"
+
+
+def _compile_demo_schema(text: str) -> TypeRegistry:
+    schema = compile_schema(text)
+    return TypeRegistry.from_schema(schema)
+
+
+def test_optional_static_group_none_round_trip():
+    registry = _compile_demo_schema(
+        """
+        namespace Demo
+        Inner/1 -> u32 value
+        Outer/2 -> Inner opt?
+        """
+    )
+    message = Message(type_name=QName("Demo", "Outer"), fields={"opt": None})
+    encoded = compact.encode_message(message, registry)
+    decoded, _ = compact.decode_message(encoded, registry=registry)
+    assert decoded.fields["opt"] is None
+
+
+def test_static_group_invalid_presence_raises():
+    registry = _compile_demo_schema(
+        """
+        namespace Demo
+        Inner/1 -> u32 value
+        Outer/2 -> Inner opt?
+        """
+    )
+    message = Message(
+        type_name=QName("Demo", "Outer"),
+        fields={"opt": {"value": 1}},
+    )
+    encoded = compact.encode_message(message, registry)
+    frame, _ = compact.decode_frame(encoded)
+    tampered_payload = bytes([0x02]) + frame.payload[1:]
+    tampered = compact.encode_frame(frame.type_id, tampered_payload)
+    with pytest.raises(DecodeError):
+        compact.decode_message(tampered, registry=registry)
 
 
 def test_blink_schema_group_decl_round_trip():

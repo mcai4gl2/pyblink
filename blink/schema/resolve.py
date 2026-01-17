@@ -294,6 +294,74 @@ class SchemaResolver:
             self._incremental_annotations.setdefault(key, []).extend(entry.annotations)
 
 
+class _IncrementalApplier:
+    def __init__(self, schema: Schema, default_namespace: str | None):
+        self.schema = schema
+        self.default_namespace = default_namespace
+
+    def qualify(self, qname: QName) -> QName:
+        namespace = qname.namespace if qname.namespace is not None else self.default_namespace
+        return QName(namespace, qname.name)
+
+    def apply_schema_annotations(self, annotations: Sequence[AnnotationAst]) -> None:
+        if not annotations:
+            return
+        mapping = dict(self.schema.annotations)
+        for annotation in annotations:
+            mapping[self.qualify(annotation.name)] = annotation.value
+        self.schema.annotations = mapping
+
+    def apply_incremental(self, entry: IncrementalAnnotationAst) -> None:
+        target = self.qualify(entry.target.name)
+        member = entry.target.member
+        if str(target) == "schema":
+            self.apply_schema_annotations(entry.annotations)
+            return
+        annotations = {
+            self.qualify(annotation.name): annotation.value for annotation in entry.annotations
+        }
+        if not annotations:
+            return
+        key = str(target)
+        if member:
+            self._apply_field_annotation(key, member, annotations)
+        else:
+            self._apply_group_annotation(key, annotations)
+
+    def _apply_group_annotation(self, key: str, annotations: Dict[QName, str]) -> None:
+        try:
+            group = self.schema.groups[key]
+        except KeyError as exc:
+            raise SchemaError(f"Unknown group {key} for incremental annotation") from exc
+        merged = dict(group.annotations)
+        merged.update(annotations)
+        group.annotations = merged
+
+    def _apply_field_annotation(
+        self, group_key: str, field_name: str, annotations: Dict[QName, str]
+    ) -> None:
+        try:
+            group = self.schema.groups[group_key]
+        except KeyError as exc:
+            raise SchemaError(
+                f"Unknown group {group_key} for incremental field annotation"
+            ) from exc
+        fields = list(group.fields)
+        for idx, field in enumerate(fields):
+            if field.name == field_name:
+                merged = dict(field.annotations)
+                merged.update(annotations)
+                fields[idx] = FieldDef(
+                    name=field.name,
+                    type_ref=field.type_ref,
+                    optional=field.optional,
+                    annotations=merged,
+                )
+                group.fields = tuple(fields)
+                return
+        raise SchemaError(f"Unknown field {field_name} on group {group_key}")
+
+
 def resolve_schema(schema_ast: SchemaAst) -> Schema:
     """Public helper to resolve ``SchemaAst`` into ``Schema``."""
 
@@ -301,4 +369,13 @@ def resolve_schema(schema_ast: SchemaAst) -> Schema:
     return resolver.resolve()
 
 
-__all__ = ["SchemaResolver", "resolve_schema"]
+def apply_incremental_annotations(schema: Schema, schema_ast: SchemaAst) -> None:
+    """Apply incremental annotations from ``schema_ast`` onto existing ``schema``."""
+
+    applier = _IncrementalApplier(schema, schema_ast.namespace)
+    applier.apply_schema_annotations(schema_ast.schema_annotations)
+    for entry in schema_ast.incremental_annotations:
+        applier.apply_incremental(entry)
+
+
+__all__ = ["SchemaResolver", "resolve_schema", "apply_incremental_annotations"]

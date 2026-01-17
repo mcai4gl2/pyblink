@@ -1,9 +1,10 @@
-"""CLI to encode JSON payloads into Compact Binary using a Blink schema."""
+"""CLI to encode payloads into Compact Binary using a Blink schema."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict
 
@@ -24,19 +25,76 @@ from blink.schema.model import (
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Encode a JSON payload via Blink Compact Binary.")
+    parser = argparse.ArgumentParser(
+        description="Encode payloads to Compact Binary using a Blink schema.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Encode JSON to Compact Binary
+  %(prog)s --schema schema.blink --type Trading:OrderEvent --input order.json
+
+  # Encode JSON from stdin
+  echo '{"field": "value"}' | %(prog)s --schema schema.blink --type Trading:OrderEvent --input -
+
+  # Encode Tag format to Compact Binary
+  %(prog)s --schema schema.blink --type Trading:OrderEvent --input order.txt --format tag
+
+  # Encode XML to Compact Binary
+  %(prog)s --schema schema.blink --type Trading:OrderEvent --input order.xml --format xml
+        """,
+    )
     parser.add_argument("--schema", required=True, help="Path to .blink schema file")
     parser.add_argument("--type", required=True, help="Qualified message type (e.g., Trading:OrderEvent)")
-    parser.add_argument("--input", required=True, help="Path to JSON payload")
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Input file (use '-' for stdin). Format depends on --format option.",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["json", "tag", "xml"],
+        default="json",
+        help="Input format (default: json)",
+    )
+    parser.add_argument("--output", help="Optional path to write binary output (defaults to stdout)")
+    parser.add_argument("--hex", action="store_true", help="Output as hex string instead of raw bytes")
     return parser.parse_args()
 
 
-def load_json(path: str | Path) -> Any:
-    with open(path, "r", encoding="utf-8") as handle:
-        return json.load(handle)
+def load_input(path: str | Path, format_type: str) -> Any:
+    if path == "-":
+        # Read from stdin
+        data = sys.stdin.read()
+    else:
+        data = Path(path).read_text(encoding="utf-8")
+
+    if format_type == "json":
+        return json.loads(data)
+    elif format_type == "tag":
+        from blink.codec import tag
+        # Decode Tag format to Message
+        # For simplicity, we'll return the raw string and parse it later
+        return data
+    elif format_type == "xml":
+        # Return raw XML string
+        return data
+    else:
+        return json.loads(data)
 
 
-def build_message(registry: TypeRegistry, type_name: str, data: Dict[str, Any]) -> Message:
+def build_message(registry: TypeRegistry, type_name: str, data: Any, format_type: str) -> Message:
+    if format_type == "tag":
+        from blink.codec import tag
+        return tag.decode_tag(data, registry)
+    elif format_type == "xml":
+        from blink.codec import xmlfmt
+        return xmlfmt.decode_xml(data, registry)
+    else:
+        # JSON format
+        return _build_message_from_json(registry, type_name, data)
+
+
+def _build_message_from_json(registry: TypeRegistry, type_name: str, data: Dict[str, Any]) -> Message:
     qname = QName.parse(type_name)
     group = registry.get_group_by_name(qname)
     fields = _convert_fields(group, data, registry)
@@ -96,7 +154,7 @@ def _convert_value(
         type_hint = raw.get("$type") or str(type_ref.group.name)
         qname = QName.parse(type_hint, default_namespace or type_ref.group.name.namespace)
         nested = {k: v for k, v in raw.items() if k != "$type"}
-        message = build_message(registry, str(qname), nested)
+        message = _build_message_from_json(registry, str(qname), nested)
         return message
     raise ValueError(f"Unsupported field type {type_ref}")
 
@@ -120,10 +178,18 @@ def _convert_extension(
 def main() -> None:
     args = parse_args()
     registry = TypeRegistry.from_schema_file(args.schema)
-    payload = load_json(args.input)
-    message = build_message(registry, args.type, payload)
+    payload = load_input(args.input, args.format)
+    message = build_message(registry, args.type, payload, args.format)
     encoded = compact.encode_message(message, registry)
-    print(encoded.hex())
+
+    # Write output
+    if args.output:
+        Path(args.output).write_bytes(encoded)
+    else:
+        if args.hex:
+            print(encoded.hex())
+        else:
+            sys.stdout.buffer.write(encoded)
 
 
 if __name__ == "__main__":

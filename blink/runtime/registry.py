@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, Iterable, Mapping, MutableMapping
 
+from ..schema.compiler import compile_schema, compile_schema_file
 from ..schema.model import GroupDef, QName, Schema
 from .errors import RegistryError
 
@@ -55,6 +57,26 @@ class TypeRegistry:
 
     def known_type_ids(self) -> Iterable[int]:
         return self._by_id.keys()
+
+    @classmethod
+    def from_schema(cls, schema: Schema) -> "TypeRegistry":
+        """Create a registry from a resolved ``Schema`` instance."""
+
+        return cls(schema)
+
+    @classmethod
+    def from_schema_text(cls, text: str, *, filename: str | None = None) -> "TypeRegistry":
+        """Parse + resolve ``text`` and build a registry."""
+
+        schema = compile_schema(text, filename=filename)
+        return cls(schema)
+
+    @classmethod
+    def from_schema_file(cls, path: str | Path) -> "TypeRegistry":
+        """Load a `.blink` schema file and build a registry."""
+
+        schema = compile_schema_file(path)
+        return cls(schema)
 
 
 __all__ = ["TypeRegistry"]

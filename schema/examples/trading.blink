@@ -1,0 +1,31 @@
+# Example trading schema for PyBlink demos
+
+namespace Trading
+
+Side = Buy | Sell
+
+Instrument/100 ->
+  string Symbol,
+  string Product,
+  string Currency,
+  string Exchange?
+
+Order/200 ->
+  Instrument Instrument,
+  decimal Price,
+  u32 Quantity,
+  Side Side,
+  string Status?
+
+Trade/300 ->
+  Order Order,
+  decimal FillPrice,
+  u32 FillQuantity,
+  millitime TradeTime
+
+Quote/400 ->
+  Instrument Instrument,
+  decimal Bid?,
+  decimal Ask?,
+  u32 BidSize?,
+  u32 AskSize?

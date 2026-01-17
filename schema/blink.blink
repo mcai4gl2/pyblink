@@ -1,0 +1,78 @@
+# A schema for encoding a blink schema in blink 
+
+namespace Blink
+
+GroupDecl : Annotated ->
+  NsName Name, u64 Id
+
+GroupDef : Annotated ->
+  NsName Name, u64 Id?, FieldDef [] Fields, NsName Super?
+
+FieldDef : Annotated ->
+  string Name, u32 Id?, TypeDef* Type, bool Optional
+
+Define : Annotated ->
+  NsName Name, u32 Id?, TypeDef* Type
+
+TypeDef : Annotated
+
+Ref : TypeDef ->
+  NsName Type
+
+DynRef : TypeDef -> 
+  NsName Type
+
+Sequence : TypeDef ->
+  TypeDef* Type
+
+String : TypeDef ->
+  u8 MaxSize?
+
+Binary : TypeDef ->
+  u8 MaxSize?
+
+Fixed : TypeDef ->
+  u32 Size
+
+FixedDec : TypeDef ->
+  u8 Scale
+
+Number : TypeDef ->
+  u32 MaxPrecision?
+
+Enum : TypeDef ->
+  Symbol [] Symbols
+
+Symbol : Annotated ->
+  string Name, i32 Value
+
+U8             : TypeDef 
+I8             : TypeDef
+U16            : TypeDef
+I16            : TypeDef
+U32            : TypeDef
+I32            : TypeDef
+U64            : TypeDef
+I64            : TypeDef
+F64            : TypeDef
+Bool           : TypeDef
+Decimal        : TypeDef
+NanoTime       : TypeDef
+MilliTime      : TypeDef
+Date           : TypeDef
+TimeOfDayMilli : TypeDef
+TimeOfDayNano  : TypeDef
+Object         : TypeDef
+
+SchemaAnnotation ->
+  Annotation [] Annotations,
+  string Ns?
+
+Annotated ->
+  Annotation [] Annotations?
+
+Annotation ->
+  NsName Name, string Value
+
+NsName ->
+  string Ns?, string Name

@@ -1,6 +1,6 @@
 # Blink Protocol (beta4) – Python Implementation Specification (Enhanced)
 
-**Status**: In progress – Phase 1 bootstrapping underway (runtime/core codec implemented on 2026‑01‑16)
+**Status**: In progress – Phase 1 schema parser/resolver + runtime foundation completed through 2026‑01‑17
 **Audience**: Engineers building/maintaining Blink in Python within `py-learn`
 **Scope**: Schema parsing/resolution, Compact Binary codec, Tag + JSON + XML formats, Dynamic Schema Exchange, optional Native codec, repo-compliant workflows
 
@@ -300,9 +300,10 @@ Specification derives from Blink beta4 public docs. Confirm downstream licensing
 
 ---
 
-## 15. Current Status (2026-01-16)
+## 15. Current Status (2026-01-17)
 
 - **Runtime foundation ready**: Added `blink.runtime` with error types, registry, and value containers (`DecimalValue`, `StaticGroupValue`, `Message`) to support schema-driven encoding/decoding.
-- **Schema model bootstrapped**: Implemented the core type system primitives (`QName`, primitive/bin/sequence refs, enums, groups) used by upcoming parser/resolver work.
-- **Compact Binary progress**: Completed stop-bit VLC encode/decode helpers with NULL handling; comprehensive pytest coverage added under `projects/pyblink/tests/test_vlc.py`.
-- **Testing wired**: Devcontainer pytest invocation (`python3 -m pytest projects/pyblink/tests -q`) passes, confirming the package layout is importable and VLC edges behave per spec.
+- **Schema parser + resolver landed**: Built a tokenizer/parser covering enums, type defs, sequences, annotations (inline + incremental), and object/dynamic references, then fed it into a resolver that merges incremental annotations, lazy-loads enums/types, and enforces Blink constraints.
+- **Schema helpers + samples**: Introduced `compile_schema(_file)` + `TypeRegistry.from_schema_*`, a documented trading schema example, and README guidance for quickly compiling `.blink` files in the devcontainer.
+- **Compact Binary framing**: Finished stop-bit VLC helpers plus schema-aware `encode_message`/`decode_message` capable of handling ints, decimals, enums, strings, and static groups; frame iterators + trading-schema round trips are covered by pytest.
+- **Testing wired**: Devcontainer pytest invocation (`python3 -m pytest projects/pyblink/tests -q`) now exercises VLC, parser/resolver, compile helpers, and Compact Binary framing.

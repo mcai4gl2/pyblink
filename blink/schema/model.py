@@ -82,6 +82,8 @@ class BinaryType:
 class EnumType:
     name: QName
     symbols: Mapping[str, int]
+    annotations: Mapping[QName, str] = field(default_factory=dict)
+    symbol_annotations: Mapping[str, Mapping[QName, str]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         values = set()
@@ -122,7 +124,6 @@ class GroupDef:
     fields: Sequence[FieldDef]
     super_group: "GroupDef | None" = None
     annotations: Mapping[QName, str] = field(default_factory=dict)
-    is_dynamic: bool = True
 
     def all_fields(self) -> Iterable[FieldDef]:
         if self.super_group:
@@ -135,6 +136,7 @@ class Schema:
     namespace: str | None
     groups: Dict[str, GroupDef] = field(default_factory=dict)
     type_ids: Dict[int, GroupDef] = field(default_factory=dict)
+    annotations: Dict[QName, str] = field(default_factory=dict)
 
     def add_group(self, group: GroupDef) -> None:
         key = str(group.name)
@@ -165,6 +167,11 @@ class SequenceType:
 
 
 @dataclass(frozen=True, slots=True)
+class ObjectType:
+    """Represents the Blink object type (dynamic group of any type)."""
+
+
+@dataclass(frozen=True, slots=True)
 class StaticGroupRef:
     group: "GroupDef"
 
@@ -174,7 +181,15 @@ class DynamicGroupRef:
     group: "GroupDef"
 
 
-TypeRef = PrimitiveType | BinaryType | SequenceType | EnumType | StaticGroupRef | DynamicGroupRef
+TypeRef = (
+    PrimitiveType
+    | BinaryType
+    | SequenceType
+    | EnumType
+    | StaticGroupRef
+    | DynamicGroupRef
+    | ObjectType
+)
 
 
 __all__ = [
@@ -189,4 +204,5 @@ __all__ = [
     "SequenceType",
     "StaticGroupRef",
     "DynamicGroupRef",
+    "ObjectType",
 ]

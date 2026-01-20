@@ -28,7 +28,7 @@ from ..schema.model import (
     TypeRef,
 )
 
-BLINK_NAMESPACE = "http://blinkprotocol.org/beta4"
+BLINK_NAMESPACE = "http://blinkprotocol.org/ns/blink"
 
 
 def _format_value(value: any, type_ref: TypeRef, registry: TypeRegistry, default_namespace: str | None) -> str:
@@ -56,9 +56,11 @@ def _format_value(value: any, type_ref: TypeRef, registry: TypeRegistry, default
             # Binary data: try UTF-8, otherwise hex string
             data = bytes(value)
             try:
+                # Per spec: all valid UTF-8 should be encoded as text
+                # However, XML has restrictions on control characters
                 decoded = data.decode("utf-8")
-                # Check if all characters are XML-safe (printable ASCII)
-                if all(32 <= ord(c) <= 126 or c in '\n\r\t' for c in decoded):
+                # Check if all characters are XML-safe (no control chars except tab, newline, carriage return)
+                if all(ord(c) >= 0x20 or c in '\t\n\r' for c in decoded):
                     return decoded
             except UnicodeDecodeError:
                 pass
@@ -160,12 +162,17 @@ def _format_message(message: Message, registry: TypeRegistry) -> ET.Element:
             # Simple value
             child = ET.Element(field.name)
             child.text = _format_value(value, field.type_ref, registry, group.name.namespace)
-            # Add binary attribute for non-UTF-8 binary data
+            # Add binary attribute for non-UTF-8 or non-XML-safe binary data
             if isinstance(field.type_ref, BinaryType) and field.type_ref.kind != "string":
                 data = bytes(value)
                 try:
-                    data.decode("utf-8")
+                    # Check if it's valid UTF-8 and XML-safe
+                    decoded = data.decode("utf-8")
+                    if not all(ord(c) >= 0x20 or c in '\t\n\r' for c in decoded):
+                        # Valid UTF-8 but has control chars - needs binary attribute
+                        child.set("binary", "yes")
                 except UnicodeDecodeError:
+                    # Not valid UTF-8 - add binary="yes" attribute
                     child.set("binary", "yes")
             element.append(child)
 
@@ -210,18 +217,11 @@ def _parse_value(element: ET.Element, type_ref: TypeRef, registry: TypeRegistry,
             return text
         else:
             if binary_attr:
-                # Hex string
+                # Hex string when binary="yes" is present
                 return bytes.fromhex(text)
             else:
-                # Check if text is a valid hex string (even length, only hex digits)
-                if len(text) % 2 == 0 and all(c in "0123456789abcdefABCDEF" for c in text):
-                    # It's a hex-encoded string
-                    return bytes.fromhex(text)
-                # Try UTF-8
-                try:
-                    return text.encode("utf-8")
-                except UnicodeEncodeError:
-                    return bytes.fromhex(text)
+                # Per spec: without binary="yes", treat as UTF-8 text
+                return text.encode("utf-8")
 
     if isinstance(type_ref, EnumType):
         return element.text or ""
@@ -301,17 +301,21 @@ def decode_xml(s: str, registry: TypeRegistry) -> Message:
 
 
 def encode_xml_stream(messages: List[Message], registry: TypeRegistry) -> str:
-    """Encode multiple messages to XML (one root element per message)."""
-    return "\n".join(encode_xml(msg, registry) for msg in messages)
+    """Encode multiple messages to XML with root wrapper per spec."""
+    # Per spec: streams should be wrapped in a single root element
+    root = ET.Element("root")
+    for msg in messages:
+        element = _format_message(msg, registry)
+        root.append(element)
+    return ET.tostring(root, encoding="unicode")
 
 
 def decode_xml_stream(s: str, registry: TypeRegistry) -> List[Message]:
-    """Decode multiple messages from XML (one root element per line)."""
+    """Decode multiple messages from XML with root wrapper per spec."""
+    root = ET.fromstring(s)
     messages = []
-    for line in s.splitlines():
-        line = line.strip()
-        if line:
-            messages.append(decode_xml(line, registry))
+    for child in root:
+        messages.append(_parse_message(child, registry, None))
     return messages
 
 

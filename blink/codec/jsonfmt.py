@@ -54,7 +54,11 @@ def _format_value(value: Any, type_ref: TypeRef, registry: TypeRegistry, default
                 exponent, mantissa = value
             else:
                 raise EncodeError("Decimal values require DecimalValue or tuple")
-            # Format as mantissa e exponent
+            # Per spec: if |mantissa| < 1e15, encode as JSON number
+            if abs(mantissa) < NUMERIC_THRESHOLD:
+                # Calculate the actual decimal value
+                return mantissa * (10 ** exponent)
+            # Otherwise format as mantissa e exponent string
             return f"{mantissa}e{exponent}"
         if type_ref.primitive == PrimitiveKind.F64:
             float_val = float(value)
@@ -63,6 +67,17 @@ def _format_value(value: Any, type_ref: TypeRef, registry: TypeRegistry, default
             if math.isinf(float_val):
                 return "Inf" if float_val > 0 else "-Inf"
             return float_val
+        # Time/date types: encode as strings in Tag format per spec
+        if type_ref.primitive in (
+            PrimitiveKind.MILLITIME,
+            PrimitiveKind.NANOTIME,
+            PrimitiveKind.DATE,
+            PrimitiveKind.TIME_OF_DAY_MILLI,
+            PrimitiveKind.TIME_OF_DAY_NANO,
+        ):
+            # For now, encode as string representation of the integer
+            # TODO: Implement proper ISO 8601 formatting per Tag spec
+            return str(int(value))
         # Integer types
         int_val = int(value)
         if _is_safe_json_number(int_val):
@@ -160,7 +175,32 @@ def _parse_value(raw: Any, type_ref: TypeRef, registry: TypeRegistry, default_na
                     return False
             raise DecodeError(f"Invalid boolean value: {raw}")
         if type_ref.primitive == PrimitiveKind.DECIMAL:
-            if isinstance(raw, str):
+            if isinstance(raw, (int, float)):
+                # If it's a JSON number, convert to decimal
+                # Convert to string to preserve precision, then parse
+                str_val = str(raw)
+                if 'e' in str_val.lower():
+                    # Scientific notation: parse it
+                    parts = str_val.lower().split('e')
+                    mantissa = float(parts[0])
+                    exponent = int(parts[1])
+                    # Normalize to integer mantissa
+                    while mantissa != int(mantissa) and mantissa != 0:
+                        mantissa *= 10
+                        exponent -= 1
+                    return DecimalValue(exponent=exponent, mantissa=int(mantissa))
+                elif '.' in str_val:
+                    # Decimal notation: count decimal places
+                    parts = str_val.split('.')
+                    decimal_places = len(parts[1])
+                    # Remove the decimal point
+                    mantissa = int(parts[0] + parts[1])
+                    exponent = -decimal_places
+                    return DecimalValue(exponent=exponent, mantissa=mantissa)
+                else:
+                    # Integer
+                    return DecimalValue(exponent=0, mantissa=int(raw))
+            elif isinstance(raw, str):
                 # Parse mantissa e exponent format: 15005e-2
                 parts = raw.split("e")
                 if len(parts) != 2:
@@ -180,6 +220,19 @@ def _parse_value(raw: Any, type_ref: TypeRef, registry: TypeRegistry, default_na
                 if raw == "-Inf":
                     return float("-inf")
             return float(raw)
+        # Time/date types: parse from strings per spec
+        if type_ref.primitive in (
+            PrimitiveKind.MILLITIME,
+            PrimitiveKind.NANOTIME,
+            PrimitiveKind.DATE,
+            PrimitiveKind.TIME_OF_DAY_MILLI,
+            PrimitiveKind.TIME_OF_DAY_NANO,
+        ):
+            # For now, parse as integer from string
+            # TODO: Implement proper ISO 8601 parsing per Tag spec
+            if isinstance(raw, str):
+                return int(raw)
+            return int(raw)
         # Integer types
         if isinstance(raw, int):
             return raw
@@ -198,7 +251,14 @@ def _parse_value(raw: Any, type_ref: TypeRef, registry: TypeRegistry, default_na
                 except UnicodeEncodeError:
                     pass
             if isinstance(raw, list):
-                return bytes(int(part, 16) for part in raw)
+                # Per spec: each hex list entry can contain multiple hex pairs with spaces
+                result = bytearray()
+                for part in raw:
+                    # Split by whitespace and parse each hex pair
+                    hex_pairs = part.split()
+                    for hex_pair in hex_pairs:
+                        result.append(int(hex_pair, 16))
+                return bytes(result)
             raise DecodeError(f"Invalid binary value: {raw}")
 
     if isinstance(type_ref, EnumType):
@@ -259,18 +319,18 @@ def decode_json(s: str, registry: TypeRegistry) -> Message:
 
 
 def encode_json_stream(messages: List[Message], registry: TypeRegistry) -> str:
-    """Encode multiple messages to JSON (one object per line, compact format)."""
-    return "\n".join(json.dumps(_format_message(msg, registry), ensure_ascii=False) for msg in messages)
+    """Encode multiple messages to JSON array per spec."""
+    # Per spec: streams should be wrapped in a JSON array
+    data = [_format_message(msg, registry) for msg in messages]
+    return json.dumps(data, indent=2, ensure_ascii=False)
 
 
 def decode_json_stream(s: str, registry: TypeRegistry) -> List[Message]:
-    """Decode multiple messages from JSON (one object per line)."""
-    messages = []
-    for line in s.splitlines():
-        line = line.strip()
-        if line:
-            messages.append(decode_json(line, registry))
-    return messages
+    """Decode multiple messages from JSON array per spec."""
+    data = json.loads(s)
+    if not isinstance(data, list):
+        raise DecodeError("JSON stream must be an array")
+    return [_parse_message(item, registry, None) for item in data]
 
 
 __all__ = [

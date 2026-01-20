@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import struct
 from dataclasses import dataclass
 from typing import Dict, Iterator, Tuple
 
@@ -14,10 +15,10 @@ from ..schema.model import (
     EnumType,
     FieldDef,
     GroupDef,
-    QName,
     ObjectType,
     PrimitiveKind,
     PrimitiveType,
+    QName,
     SequenceType,
     StaticGroupRef,
     TypeRef,
@@ -201,6 +202,13 @@ def _encode_primitive(kind: PrimitiveKind, value, optional: bool) -> bytes:
         else:
             raise EncodeError("Decimal fields require DecimalValue or (exponent, mantissa)")
         return encode_vlc(exponent) + encode_vlc(mantissa)
+    if kind == PrimitiveKind.F64:
+        # f64 must be encoded as IEEE 754 bit pattern (u64) via VLC
+        if not isinstance(value, (int, float)):
+            raise EncodeError(f"F64 expects a numeric value, got {type(value)}")
+        # Pack as double-precision float, unpack as unsigned 64-bit integer
+        bits = struct.unpack('>Q', struct.pack('>d', float(value)))[0]
+        return encode_vlc(bits)
     if isinstance(value, bool):
         value = int(value)
     if not isinstance(value, int):
@@ -212,6 +220,9 @@ def _encode_binary(binary: BinaryType, value, optional: bool) -> bytes:
     if value is None:
         if not optional:
             raise EncodeError("Non-optional binary field cannot be None")
+        # For fixed fields, use presence byte 0xC0; for variable, use VLC NULL
+        if binary.kind == "fixed":
+            return bytes([0xC0])
         return encode_vlc(None)
     if binary.kind == "string":
         if not isinstance(value, str):
@@ -224,6 +235,9 @@ def _encode_binary(binary: BinaryType, value, optional: bool) -> bytes:
     if binary.kind == "fixed":
         if len(data) != (binary.size or 0):
             raise EncodeError(f"Fixed field requires exactly {binary.size} bytes")
+        # Nullable fixed: presence byte 0x01 + data
+        if optional:
+            return bytes([0x01]) + data
         return data
     return encode_vlc(len(data)) + data
 
@@ -370,7 +384,7 @@ def _decode_type(
     if isinstance(type_ref, PrimitiveType):
         return _decode_primitive(type_ref.primitive, payload, offset)
     if isinstance(type_ref, BinaryType):
-        return _decode_binary(type_ref, payload, offset)
+        return _decode_binary(type_ref, payload, offset, optional)
     if isinstance(type_ref, EnumType):
         value, new_offset = decode_vlc(payload, offset)
         if value is None:
@@ -419,11 +433,26 @@ def _decode_primitive(kind: PrimitiveKind, payload: memoryview, offset: int):
         if mantissa is None:
             raise DecodeError("Decimal mantissa cannot be NULL")
         return DecimalValue(exponent=int(value), mantissa=int(mantissa)), cursor2
+    if kind == PrimitiveKind.F64:
+        # f64 is encoded as u64 bit pattern via VLC, decode back to float
+        bits = int(value)
+        float_value = struct.unpack('>d', struct.pack('>Q', bits))[0]
+        return float_value, cursor
     return int(value), cursor
 
 
-def _decode_binary(binary: BinaryType, payload: memoryview, offset: int):
+def _decode_binary(binary: BinaryType, payload: memoryview, offset: int, optional: bool):
     if binary.kind == "fixed":
+        # Nullable fixed: check presence byte
+        if optional:
+            if offset >= len(payload):
+                raise DecodeError("Missing presence byte for nullable fixed field")
+            presence = payload[offset]
+            if presence == 0xC0:
+                return None, offset + 1
+            if presence != 0x01:
+                raise DecodeError(f"Invalid presence byte for nullable fixed field: {presence:#x}")
+            offset += 1  # Skip presence byte
         end = offset + (binary.size or 0)
         if end > len(payload):
             raise DecodeError("Truncated fixed binary field")

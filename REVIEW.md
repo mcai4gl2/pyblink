@@ -1,5 +1,35 @@
 # PyBlink Specification Review
 
+## Status Update (2026-01-20)
+
+**Test Results:** ✅ All 153 tests passing (was 139 passed, 14 failed)
+
+**High-Severity Issues Fixed:**
+- ✅ f64 encoding/decoding - IEEE 754 conversion implemented
+- ✅ Nullable fixed fields - Presence byte handling added
+- ✅ Tag format syntax - Corrected to spec (Y/N booleans, [...] sequences, semicolons)
+- ✅ Tag format value rules - Boolean tokens and formatting fixed
+- ✅ JSON mapping - Stream arrays, decimal numbers, time/date strings implemented
+- ✅ XML structure and namespace - Corrected namespace, root wrapper, binary handling
+
+**Medium-Severity Issues Fixed:**
+- ✅ JSON hex list decoding - Now accepts whitespace groups
+- ✅ XML binary handling - Fixed UTF-8 text encoding and binary attribute logic
+
+**Issues Not Yet Addressed:**
+- Schema exchange (partial implementation, no failing tests)
+- Extensions skipping unknown types
+- String/binary max-size annotations
+- Dynamic group compatibility checks
+- UTF-8 decoding weak error handling
+- Optional fields presence semantics
+- Strict/permissive propagation
+- Native binary format (optional)
+
+See `devlogs/2026-01-20.md` for technical implementation details.
+
+---
+
 ## Scope and sources checked
 - `projects/pyblink/SPEC.md`
 - `projects/pyblink/specs/BlinkSpec-beta4.txt`

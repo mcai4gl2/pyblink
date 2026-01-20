@@ -45,10 +45,10 @@ def test_xml_binary_valid_utf8_is_text():
     registry = _registry()
     message = Message(
         type_name=QName("Demo", "Payload"),
-        fields={"Data": b\"\\xc3\\xa4\"},
+        fields={"Data": b"\xc3\xa4"},
     )
     encoded = xmlfmt.encode_xml(message, registry)
     root = ET.fromstring(encoded)
     data = root.find("Data")
     assert data is not None
-    assert data.text == \"\\u00e4\"
+    assert data.text == "\u00e4"

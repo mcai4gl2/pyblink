@@ -135,7 +135,8 @@ def _format_value(value, type_ref: TypeRef, registry: TypeRegistry, default_name
 
     if isinstance(type_ref, PrimitiveType):
         if type_ref.primitive == PrimitiveKind.BOOL:
-            return "true" if value else "false"
+            # Booleans encoded as Y/N per spec
+            return "Y" if value else "N"
         if type_ref.primitive == PrimitiveKind.DECIMAL:
             if isinstance(value, DecimalValue):
                 return f"{value.mantissa}e{value.exponent}"
@@ -158,7 +159,8 @@ def _format_value(value, type_ref: TypeRef, registry: TypeRegistry, default_name
         if not isinstance(value, (list, tuple)):
             raise EncodeError("Sequence values must be list or tuple")
         items = [_format_value(item, type_ref.element_type, registry, default_namespace) for item in value]
-        return f"{{{','.join(items)}}}"
+        # Sequences use [...] with semicolon separators per spec
+        return f"[{';'.join(items)}]"
 
     if isinstance(type_ref, DynamicGroupRef) or isinstance(type_ref, ObjectType):
         if isinstance(value, Message):
@@ -173,8 +175,8 @@ def _format_value(value, type_ref: TypeRef, registry: TypeRegistry, default_name
             message = Message(type_name=qname, fields=fields)
         else:
             raise EncodeError("Dynamic group values must be dict or Message")
-
-        return _format_message(message, registry)
+        # Dynamic groups wrapped in braces per spec
+        return "{" + _format_message(message, registry) + "}"
 
     if isinstance(type_ref, StaticGroupRef):
         if isinstance(value, StaticGroupValue):
@@ -207,7 +209,8 @@ def _format_message(message: Message, registry: TypeRegistry) -> str:
         parts.append(f"{field.name}={field_str}")
 
     if message.extensions:
-        ext_str = ",".join(_format_message(ext, registry) for ext in message.extensions)
+        # Extensions use semicolon separators per spec
+        ext_str = ";".join(_format_message(ext, registry) for ext in message.extensions)
         parts.append(f"[{ext_str}]")
 
     return "|".join(parts)
@@ -222,9 +225,10 @@ def _parse_value(s: str, type_ref: TypeRef, registry: TypeRegistry, default_name
     """Parse a value from Tag string."""
     if isinstance(type_ref, PrimitiveType):
         if type_ref.primitive == PrimitiveKind.BOOL:
-            if s.lower() == "true":
+            # Accept Y/N per spec, also accept true/false for compatibility
+            if s.upper() == "Y" or s.lower() == "true":
                 return True
-            elif s.lower() == "false":
+            elif s.upper() == "N" or s.lower() == "false":
                 return False
             else:
                 raise DecodeError(f"Invalid boolean value: {s}")
@@ -248,16 +252,15 @@ def _parse_value(s: str, type_ref: TypeRef, registry: TypeRegistry, default_name
         return s
 
     if isinstance(type_ref, SequenceType):
-        # Parse sequence as {item1,item2,...}
-        if not (s.startswith("{") and s.endswith("}")):
+        # Parse sequence as [item1;item2;...] per spec
+        if not (s.startswith("[") and s.endswith("]")):
             raise DecodeError(f"Invalid sequence format: {s}")
         inner = s[1:-1].strip()
         if not inner:
             return []
         items = []
-        # Simple parsing - split by comma (doesn't handle nested commas)
-        # For production, need proper parser
-        parts = _split_tag_sequence(inner)
+        # Split by semicolon per spec
+        parts = _split_tag_sequence(inner, separator=";")
         for part in parts:
             items.append(_parse_value(part.strip(), type_ref.element_type, registry, default_namespace))
         return items
@@ -284,7 +287,9 @@ def _parse_value(s: str, type_ref: TypeRef, registry: TypeRegistry, default_name
         return StaticGroupValue(fields)
 
     if isinstance(type_ref, DynamicGroupRef) or isinstance(type_ref, ObjectType):
-        # Dynamic group is encoded as a nested Tag message
+        # Dynamic group is wrapped in braces: {@Type|...}
+        if s.startswith("{") and s.endswith("}"):
+            s = s[1:-1]  # Remove braces
         return decode_tag(s, registry)
 
     raise DecodeError(f"Unsupported type for Tag parsing: {type_ref}")
@@ -298,19 +303,26 @@ def _find_field(group: FieldDef, name: str) -> FieldDef | None:
     return None
 
 
-def _split_tag_sequence(s: str) -> List[str]:
-    """Split a Tag sequence by commas, respecting nested braces."""
+def _split_tag_sequence(s: str, separator: str = ",") -> List[str]:
+    """Split a Tag sequence by separator, respecting nested brackets and braces."""
     result = []
     current = []
-    depth = 0
+    bracket_depth = 0
+    brace_depth = 0
     for c in s:
-        if c == "{" and depth == 0:
+        if c == "[":
             current.append(c)
-            depth += 1
-        elif c == "}" and depth > 0:
+            bracket_depth += 1
+        elif c == "]" and bracket_depth > 0:
             current.append(c)
-            depth -= 1
-        elif c == "," and depth == 0:
+            bracket_depth -= 1
+        elif c == "{":
+            current.append(c)
+            brace_depth += 1
+        elif c == "}" and brace_depth > 0:
+            current.append(c)
+            brace_depth -= 1
+        elif c == separator and bracket_depth == 0 and brace_depth == 0:
             result.append("".join(current))
             current = []
         else:
@@ -451,48 +463,9 @@ def _split_tag_parts(s: str) -> List[str]:
 
 
 def _split_tag_extensions(s: str) -> List[str]:
-    """Split extension messages by commas, respecting nested @ symbols."""
-    result = []
-    current = []
-    depth = 0
-    in_type = False
-
-    for c in s:
-        if c == "@" and depth == 0:
-            if current:
-                result.append("".join(current))
-                current = []
-            current.append(c)
-            in_type = True
-        elif c == "[":
-            current.append(c)
-            depth += 1
-        elif c == "]" and depth > 0:
-            current.append(c)
-            depth -= 1
-        elif c == "{" and depth == 0:
-            current.append(c)
-            brace_depth = 1
-            # Count braces
-            for remaining in s[s.index(c) + 1:]:
-                if remaining == "{":
-                    brace_depth += 1
-                elif remaining == "}":
-                    brace_depth -= 1
-                    if brace_depth == 0:
-                        break
-        elif c == "," and depth == 0 and not in_type:
-            if current:
-                result.append("".join(current))
-                current = []
-        else:
-            current.append(c)
-            in_type = False
-
-    if current:
-        result.append("".join(current))
-
-    return result
+    """Split extension messages by semicolons per spec, respecting nested structures."""
+    # Use the generic sequence splitter with semicolon separator
+    return _split_tag_sequence(s, separator=";")
 
 
 def encode_tag_stream(messages: List[Message], registry: TypeRegistry) -> str:

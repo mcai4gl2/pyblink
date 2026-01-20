@@ -3,9 +3,8 @@
 Supports runtime schema updates via reserved type IDs 16000-16383:
 - GroupDecl/16000: Declare a new group type
 - GroupDef/16001: Define a complete group with fields
-- FieldDef/16002: Define a field
-- Define/16003: Define a type alias
-- TypeDef/16004: Base type definition
+- Define/16002: Define a type alias
+- SchemaAnnotation/16027: Schema-level annotations
 - And other schema transport messages
 """
 
@@ -37,49 +36,36 @@ from ..schema.model import (
 # Only these specific messages can update the schema at runtime
 TYPE_ID_GROUP_DECL = 16000
 TYPE_ID_GROUP_DEF = 16001
-TYPE_ID_FIELD_DEF = 16002
-TYPE_ID_DEFINE = 16003
-TYPE_ID_TYPE_DEF = 16004
-TYPE_ID_SYMBOL = 16019
-TYPE_ID_SCHEMA_ANNOTATION = 16037  # Not in original schema but needed
-TYPE_ID_ANNOTATED = 16038  # Not in original schema but needed
-TYPE_ID_ANNOTATION = 16039  # Not in original schema but needed
+TYPE_ID_DEFINE = 16002
+TYPE_ID_SCHEMA_ANNOTATION = 16027
 
 # Type IDs that are part of Blink schema but are NOT schema transport messages
 # These are just type definitions used to describe the schema structure
 SCHEMA_DEFINITION_TYPE_IDS = {
-    16005,  # Ref (actually 16010 in the schema)
-    16006,  # DynRef (actually 16011 in the schema)
-    16007,  # Sequence (actually 16012 in the schema)
-    16008,  # String (actually 16013 in the schema)
-    16009,  # Binary (actually 16014 in the schema)
-    16010,  # Ref
-    16011,  # DynRef
-    16012,  # Sequence
-    16013,  # String
-    16014,  # Binary
-    16015,  # Fixed
-    16016,  # FixedDec
-    16017,  # Number
-    16018,  # Enum
-    16019,  # Symbol
-    16020,  # U8
-    16021,  # I8
-    16022,  # U16
-    16023,  # I16
-    16024,  # U32
-    16025,  # I32
-    16026,  # U64
-    16027,  # I64
-    16028,  # F64
-    16029,  # Bool
-    16030,  # Decimal
-    16031,  # NanoTime
-    16032,  # MilliTime
-    16033,  # Date
-    16034,  # TimeOfDayMilli
-    16035,  # TimeOfDayNano
-    16036,  # Object
+    16003,  # Ref
+    16004,  # DynRef
+    16005,  # Sequence
+    16006,  # String
+    16007,  # Binary
+    16008,  # Fixed
+    16009,  # Enum
+    16010,  # U8
+    16011,  # I8
+    16012,  # U16
+    16013,  # I16
+    16014,  # U32
+    16015,  # I32
+    16016,  # U64
+    16017,  # I64
+    16018,  # F64
+    16019,  # Bool
+    16020,  # Decimal
+    16021,  # NanoTime
+    16022,  # MilliTime
+    16023,  # Date
+    16024,  # TimeOfDayMilli
+    16025,  # TimeOfDayNano
+    16026,  # Object
 }
 
 # Reserved type ID range for schema transport messages
@@ -93,10 +79,8 @@ def is_schema_transport_message(type_id: int) -> bool:
     return type_id in {
         TYPE_ID_GROUP_DECL,
         TYPE_ID_GROUP_DEF,
-        TYPE_ID_FIELD_DEF,
         TYPE_ID_DEFINE,
-        TYPE_ID_TYPE_DEF,
-        TYPE_ID_SYMBOL,
+        TYPE_ID_SCHEMA_ANNOTATION,
     }
 
 

@@ -22,14 +22,12 @@ def test_is_schema_transport_message():
     """Test detection of schema transport type IDs."""
     assert is_schema_transport_message(16000)  # GroupDecl
     assert is_schema_transport_message(16001)  # GroupDef
-    assert is_schema_transport_message(16002)  # FieldDef
-    assert is_schema_transport_message(16003)  # Define
-    assert is_schema_transport_message(16004)  # TypeDef
-    assert is_schema_transport_message(16019)  # Symbol
+    assert is_schema_transport_message(16002)  # Define
+    assert is_schema_transport_message(16027)  # SchemaAnnotation
     # These are schema definitions, NOT schema transport messages
-    assert not is_schema_transport_message(16010)  # Ref
-    assert not is_schema_transport_message(16011)  # DynRef
-    assert not is_schema_transport_message(16020)  # U8
+    assert not is_schema_transport_message(16003)  # Ref
+    assert not is_schema_transport_message(16004)  # DynRef
+    assert not is_schema_transport_message(16010)  # U8
     assert not is_schema_transport_message(15999)
     assert not is_schema_transport_message(16384)
 
@@ -222,8 +220,8 @@ def test_is_schema_transport_message_edge_cases():
     assert is_schema_transport_message(16000)  # GroupDecl
     assert is_schema_transport_message(16001)  # GroupDef
     # Test schema definitions (NOT transport messages)
-    assert not is_schema_transport_message(16010)  # Ref
-    assert not is_schema_transport_message(16020)  # U8
+    assert not is_schema_transport_message(16003)  # Ref
+    assert not is_schema_transport_message(16010)  # U8
     # Test outside reserved range
     assert not is_schema_transport_message(15999)
     assert not is_schema_transport_message(16384)

@@ -8,63 +8,57 @@ GroupDecl/16000 : Annotated ->
 GroupDef/16001 : Annotated ->
   NsName Name, u64 Id?, FieldDef [] Fields, NsName Super?
 
-FieldDef/16002 : Annotated ->
+FieldDef : Annotated ->
   string Name, u32 Id?, TypeDef* Type, bool Optional
 
-Define/16003 : Annotated ->
+Define/16002 : Annotated ->
   NsName Name, u32 Id?, TypeDef* Type
 
-TypeDef/16004 : Annotated
+TypeDef : Annotated
 
-Ref/16010 : TypeDef ->
+Ref/16003 : TypeDef ->
   NsName Type
 
-DynRef/16011 : TypeDef -> 
+DynRef/16004 : TypeDef -> 
   NsName Type
 
-Sequence/16012 : TypeDef ->
+Sequence/16005 : TypeDef ->
   TypeDef* Type
 
-String/16013 : TypeDef ->
-  u8 MaxSize?
+String/16006 : TypeDef ->
+  u32 MaxSize?
 
-Binary/16014 : TypeDef ->
-  u8 MaxSize?
+Binary/16007 : TypeDef ->
+  u32 MaxSize?
 
-Fixed/16015 : TypeDef ->
+Fixed/16008 : TypeDef ->
   u32 Size
 
-FixedDec/16016 : TypeDef ->
-  u8 Scale
-
-Number/16017 : TypeDef ->
-  u32 MaxPrecision?
-
-Enum/16018 : TypeDef ->
+Enum/16009 : TypeDef ->
   Symbol [] Symbols
 
-Symbol/16019 : Annotated ->
+Symbol : Annotated ->
   string Name, i32 Value
 
-U8/16020             : TypeDef 
-I8/16021             : TypeDef
-U16/16022            : TypeDef
-I16/16023            : TypeDef
-U32/16024            : TypeDef
-I32/16025            : TypeDef
-U64/16026            : TypeDef
-I64/16027            : TypeDef
-F64/16028            : TypeDef
-Bool/16029           : TypeDef
-Decimal/16030        : TypeDef
-NanoTime/16031       : TypeDef
-MilliTime/16032      : TypeDef
-Date/16033           : TypeDef
-TimeOfDayMilli/16034 : TypeDef
-TimeOfDayNano/16035  : TypeDef
-Object/16036         : TypeDef
+U8/16010             : TypeDef 
+I8/16011             : TypeDef
+U16/16012            : TypeDef
+I16/16013            : TypeDef
+U32/16014            : TypeDef
+I32/16015            : TypeDef
+U64/16016            : TypeDef
+I64/16017            : TypeDef
+F64/16018            : TypeDef
+Bool/16019           : TypeDef
+Decimal/16020        : TypeDef
+NanoTime/16021       : TypeDef
+MilliTime/16022      : TypeDef
+Date/16023           : TypeDef
+TimeOfDayMilli/16024 : TypeDef
+TimeOfDayNano/16025  : TypeDef
+Object/16026         : TypeDef
 
-SchemaAnnotation ->
+SchemaAnnotation/16027 ->
   Annotation [] Annotations,
   string Ns?
 

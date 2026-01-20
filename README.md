@@ -7,6 +7,7 @@ PyBlink is a Blink protocol implementation in Python, providing schema parsing, 
 - **Schema Parsing**: Parse Blink schema definitions (`.blink` files) into resolved in-memory schemas
 - **Multiple Codecs**:
   - **Compact Binary**: Efficient binary encoding for production use
+  - **Native Binary**: Fixed-width binary format optimized for speed
   - **Tag Format**: Human-readable text format with escaping support
   - **JSON Mapping**: JSON representation with numeric thresholds and special float tokens
   - **XML Mapping**: XML representation with Blink namespaces
@@ -87,6 +88,39 @@ docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
   --schema projects/pyblink/schema/examples/trading.blink \
   --input /path/to/payload.bin \
   --format tag
+```
+
+### Native Binary
+
+The `blink.codec.native` module provides the Native Binary format, which uses fixed-width fields with predictable offsets for faster encoding/decoding at the cost of larger message sizes.
+
+**Key features:**
+- Fixed-width fields at predictable offsets
+- Little-endian byte order
+- Relative offsets for variable-sized data
+- Optimized for speed over size
+
+**Encoding:**
+```python
+from blink.codec import native
+from blink.runtime.values import Message
+from blink.schema.model import QName
+
+message = Message(
+    type_name=QName("Trading", "Order"),
+    fields={"Symbol": "AAPL", "Price": 150.25, "Quantity": 100}
+)
+binary_data = native.encode_native(message, registry)
+```
+
+**Decoding:**
+```python
+decoded, offset = native.decode_native(binary_data, registry)
+```
+
+**When to use Native vs Compact:**
+- **Native**: When encoding/decoding speed is critical and bandwidth is not a constraint
+- **Compact**: When message size matters (network transmission, storage)
 ```
 
 ### Tag Format
@@ -239,10 +273,12 @@ The project uses the standard py-learn devcontainer workflow. See `.clinerules` 
 
 - ✅ Schema parser/resolver
 - ✅ Compact Binary codec
+- ✅ Native Binary codec (NEW!)
 - ✅ Tag format codec
 - ✅ JSON mapping codec
 - ✅ XML mapping codec
 - ✅ Dynamic schema exchange
 - ✅ CLI tooling
 - ✅ Property-based tests with Hypothesis
+- ✅ 167 tests passing (14 Native Binary tests)
 - ✅ 86% test coverage

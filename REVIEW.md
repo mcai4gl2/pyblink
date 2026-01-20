@@ -2,7 +2,7 @@
 
 ## Status Update (2026-01-20)
 
-**Test Results:** ✅ All 153 tests passing (was 139 passed, 14 failed)
+**Test Results:** ✅ 167 tests passing (was 139 passed, 14 failed initially)
 
 **High-Severity Issues Fixed:**
 - ✅ f64 encoding/decoding - IEEE 754 conversion implemented
@@ -16,15 +16,21 @@
 - ✅ JSON hex list decoding - Now accepts whitespace groups
 - ✅ XML binary handling - Fixed UTF-8 text encoding and binary attribute logic
 
+**New Features Implemented:**
+- ✅ **Native Binary format** - Full implementation with 14 passing tests
+  - Fixed-width fields with predictable offsets
+  - Little-endian byte order, relative offsets for variable data
+  - All primitive types, sequences, static/dynamic groups, extensions
+  - Note: Inline strings (max-size 1-255) require schema support not yet implemented
+
 **Issues Not Yet Addressed:**
 - Schema exchange (partial implementation, no failing tests)
 - Extensions skipping unknown types
-- String/binary max-size annotations
+- String/binary max-size annotations (needed for inline strings in Native format)
 - Dynamic group compatibility checks
 - UTF-8 decoding weak error handling
 - Optional fields presence semantics
 - Strict/permissive propagation
-- Native binary format (optional)
 
 See `devlogs/2026-01-20.md` for technical implementation details.
 

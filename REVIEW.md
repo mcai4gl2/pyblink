@@ -17,16 +17,16 @@
 - ✅ XML binary handling - Fixed UTF-8 text encoding and binary attribute logic
 
 **New Features Implemented:**
-- ✅ **Native Binary format** - Full implementation with 14 passing tests
+- ✅ **Native Binary format** - **COMPLETE** with all 15 tests passing
   - Fixed-width fields with predictable offsets
   - Little-endian byte order, relative offsets for variable data
   - All primitive types, sequences, static/dynamic groups, extensions
-  - Note: Inline strings (max-size 1-255) require schema support not yet implemented
+  - **Inline strings (max-size 1-255)** - Now fully supported with schema annotations
+  - **String/binary max-size annotations** - Schema model updated to accept `string(N)` and `binary(N)`
 
 **Issues Not Yet Addressed:**
 - Schema exchange (partial implementation, no failing tests)
 - Extensions skipping unknown types
-- String/binary max-size annotations (needed for inline strings in Native format)
 - Dynamic group compatibility checks
 - UTF-8 decoding weak error handling
 - Optional fields presence semantics

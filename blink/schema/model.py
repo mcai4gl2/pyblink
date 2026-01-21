@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Sequence
+from typing import Dict, Iterable, Mapping, Sequence
 
 from ..runtime.errors import SchemaError
 
@@ -66,16 +66,31 @@ class PrimitiveType:
 
 @dataclass(frozen=True, slots=True)
 class BinaryType:
-    """Represents string, binary, or fixed types."""
+    """Represents string, binary, or fixed types.
+    
+    Size semantics:
+    - fixed(N): Exactly N bytes (required)
+    - string(N): Max-size N bytes for UTF-8 encoding (optional, enables inline optimization)
+    - binary(N): Max-size N bytes (optional)
+    
+    For Native format, string(N) with 1 <= N <= 255 enables inline encoding:
+    - u8 actual_size + N bytes capacity (padded with zeros)
+    - Larger sizes or no size use offset-based encoding
+    """
 
     kind: str  # "string", "binary", "fixed"
     size: int | None = None
 
     def __post_init__(self) -> None:
-        if self.kind == "fixed" and (self.size is None or self.size <= 0):
-            raise ValueError("fixed type requires a positive size")
-        if self.kind != "fixed" and self.size is not None:
-            raise ValueError("only fixed type can specify size")
+        if self.kind == "fixed":
+            if self.size is None or self.size <= 0:
+                raise ValueError("fixed type requires a positive size")
+        elif self.size is not None:
+            # Max-size annotations for string/binary
+            if self.size <= 0:
+                raise ValueError(f"{self.kind} max-size must be positive, got {self.size}")
+            # Note: Inline string optimization in Native format requires 1 <= size <= 255
+            # but we don't enforce this here to allow larger max-sizes for validation
 
 
 @dataclass(frozen=True, slots=True)

@@ -61,18 +61,17 @@ async def validate_schema(request: dict):
     Returns:
         Validation result
     """
-    from blink.runtime.errors import SchemaError
-
     from app.services.converter import compile_blink_schema
+    from blink.runtime.errors import SchemaError
     
     schema_text = request.get("schema", "")
     
     try:
         registry = compile_blink_schema(schema_text)
         
-        # Extract group information
+        # Extract group information from registry
         groups = []
-        for group_name, group in registry._schema.groups.items():
+        for group_name, group in registry._by_name.items():
             fields = []
             for field in group.all_fields():
                 fields.append({

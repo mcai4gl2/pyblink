@@ -50,9 +50,19 @@ async def root():
 
 
 # Import and include routers
-from app.api import convert
+from app.api import convert, storage
+from app.services.storage import cleanup_old_playgrounds
 
 app.include_router(convert.router, prefix="/api", tags=["convert"])
+app.include_router(storage.router)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Run cleanup on application startup."""
+    logger.info("Running startup cleanup of old playgrounds...")
+    deleted, errors = cleanup_old_playgrounds()
+    logger.info(f"Startup cleanup complete: deleted {deleted}, errors {errors}")
 
 
 if __name__ == "__main__":

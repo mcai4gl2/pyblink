@@ -1,10 +1,12 @@
 // Main App Component
 
-import { useState } from 'react';
+import { Save } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { InputPanel } from './components/InputPanel';
 import { OutputPanel } from './components/OutputPanel';
+import { SaveModal } from './components/SaveModal';
 import { SchemaEditor } from './components/SchemaEditor';
-import { convertMessage, validateSchema } from './services/api';
+import { convertMessage, loadPlayground, validateSchema } from './services/api';
 import type { ConvertResponse, InputFormat } from './types';
 
 // Example schema with nested classes and subclasses
@@ -39,6 +41,47 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [schemaError, setSchemaError] = useState<string | undefined>();
   const [isSchemaValid, setIsSchemaValid] = useState(false);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isLoadingPlayground, setIsLoadingPlayground] = useState(false);
+  const [loadedPlaygroundTitle, setLoadedPlaygroundTitle] = useState<string | null>(null);
+
+  // Load playground from URL parameter on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const playgroundId = urlParams.get('p');
+
+    if (playgroundId) {
+      loadPlaygroundById(playgroundId);
+    }
+  }, []);
+
+  const loadPlaygroundById = async (playgroundId: string) => {
+    setIsLoadingPlayground(true);
+    try {
+      const response = await loadPlayground(playgroundId);
+
+      if (response.success && response.playground) {
+        const pg = response.playground;
+        setSchema(pg.schema);
+        setInputFormat(pg.input_format as InputFormat);
+        setInputData(pg.input_data);
+        setLoadedPlaygroundTitle(pg.title || null);
+
+        // Auto-convert after loading
+        setTimeout(() => {
+          handleConvert();
+        }, 500);
+      } else {
+        console.error('Failed to load playground:', response.error);
+        alert(`Failed to load playground: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error loading playground:', error);
+      alert('Failed to load playground. The link may be invalid or expired.');
+    } finally {
+      setIsLoadingPlayground(false);
+    }
+  };
 
   const handleValidateSchema = async () => {
     console.log('Validating schema...');
@@ -96,14 +139,49 @@ function App() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">
-            🔷 Blink Message Playground
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Convert Blink messages between all supported formats
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                🔷 Blink Message Playground
+                {loadedPlaygroundTitle && (
+                  <span className="text-sm font-normal text-gray-600 ml-3">
+                    ({loadedPlaygroundTitle})
+                  </span>
+                )}
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Convert Blink messages between all supported formats
+              </p>
+            </div>
+            <button
+              onClick={() => setIsSaveModalOpen(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium"
+              disabled={isLoadingPlayground}
+            >
+              <Save className="w-4 h-4" />
+              Save & Share
+            </button>
+          </div>
         </div>
       </header>
+
+      {/* Loading Indicator */}
+      {isLoadingPlayground && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 shadow-xl">
+            <p className="text-lg font-medium text-gray-800">Loading playground...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Save Modal */}
+      <SaveModal
+        isOpen={isSaveModalOpen}
+        onClose={() => setIsSaveModalOpen(false)}
+        schema={schema}
+        inputFormat={inputFormat}
+        inputData={inputData}
+      />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">

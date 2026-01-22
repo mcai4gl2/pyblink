@@ -36,6 +36,17 @@ See `devlogs/2026-01-20.md` for technical implementation details.
 
 ---
 
+## Status Update (2026-01-22)
+
+**Playground Enhancement:**
+- ✅ Updated default example to demonstrate nested classes and subclasses
+- ✅ Replaced simple Person schema with Company/Employee/Manager hierarchy
+- ✅ All format conversions tested and validated
+
+See `devlogs/2026-01-22.md` for details on the example update.
+
+---
+
 ## Scope and sources checked
 - `projects/pyblink/SPEC.md`
 - `projects/pyblink/specs/BlinkSpec-beta4.txt`

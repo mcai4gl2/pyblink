@@ -7,17 +7,28 @@ import { SchemaEditor } from './components/SchemaEditor';
 import { convertMessage, validateSchema } from './services/api';
 import type { ConvertResponse, InputFormat } from './types';
 
-// Example schema
+// Example schema with nested classes and subclasses
 const EXAMPLE_SCHEMA = `namespace Demo
-Person/1 -> string Name, u32 Age`;
+
+# Base class for address information
+Address/1 -> string Street, string City, u32 ZipCode
+
+# Employee class with nested Address
+Employee/2 -> string Name, u32 Age, Address HomeAddress
+
+# Manager subclass extends Employee with additional fields
+Manager/3 : Employee -> string Department, u32 TeamSize
+
+# Company class with nested Manager
+Company/4 -> string CompanyName, Manager CEO`;
 
 // Example messages for each format
 const EXAMPLE_MESSAGES: Record<InputFormat, string> = {
-  json: `{"$type":"Demo:Person","Name":"Alice","Age":30}`,
-  tag: `@Demo:Person|Name=Alice|Age=30`,
-  xml: `<Demo:Person><Name>Alice</Name><Age>30</Age></Demo:Person>`,
-  compact: `88 81 85 41 6C 69 63 65 9E`,
-  native: `1D 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 08 00 00 00 1E 00 00 00 05 00 00 00 41 6C 69 63 65`,
+  json: `{"$type":"Demo:Company","CompanyName":"TechCorp","CEO":{"Name":"Alice","Age":45,"HomeAddress":{"Street":"123 Main St","City":"San Francisco","ZipCode":94102},"Department":"Engineering","TeamSize":50}}`,
+  tag: `@Demo:Company|CompanyName=TechCorp|CEO={Name=Alice,Age=45,HomeAddress={Street=123 Main St,City=San Francisco,ZipCode=94102},Department=Engineering,TeamSize=50}`,
+  xml: `<ns0:Company xmlns:ns0="Demo"><CompanyName>TechCorp</CompanyName><CEO /></ns0:Company>`,
+  compact: `BB 84 88 54 65 63 68 43 6F 72 70 85 41 6C 69 63 65 AD 8B 31 32 33 20 4D 61 69 6E 20 53 74 8D 53 61 6E 20 46 72 61 6E 63 69 73 63 6F 16 5F 85 8B 45 6E 67 69 6E 65 65 72 69 6E 67 B2`,
+  native: `70 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 20 00 00 00 28 00 00 00 2D 00 00 00 29 00 00 00 34 00 00 00 96 6F 01 00 3D 00 00 00 32 00 00 00 08 00 00 00 54 65 63 68 43 6F 72 70 05 00 00 00 41 6C 69 63 65 0B 00 00 00 31 32 33 20 4D 61 69 6E 20 53 74 0D 00 00 00 53 61 6E 20 46 72 61 6E 63 69 73 63 6F 0B 00 00 00 45 6E 67 69 6E 65 65 72 69 6E 67`,
 };
 
 function App() {

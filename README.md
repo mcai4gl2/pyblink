@@ -13,6 +13,56 @@ PyBlink is a Blink protocol implementation in Python, providing schema parsing, 
   - **XML Mapping**: XML representation with Blink namespaces
 - **Dynamic Schema Exchange**: Runtime schema updates via reserved type IDs (16000-16383)
 - **CLI Tooling**: Command-line utilities for encoding/decoding and schema management
+- **Web Playground**: Interactive web application for testing Blink message conversions
+
+## Quick Start
+
+### Blink Message Playground (Web UI)
+
+The easiest way to explore PyBlink is through the **Blink Message Playground** - a web application that lets you interactively convert messages between all supported formats.
+
+**Start both servers with one command:**
+
+```bash
+# Windows (PowerShell)
+.\start.ps1
+
+# Windows (Command Prompt)
+start.bat
+
+# Cross-platform (using Make)
+make start
+```
+
+This will start:
+- **Backend API** at http://127.0.0.1:8000 (FastAPI with auto-generated docs at `/docs`)
+- **Frontend App** at http://localhost:3000 (React + TypeScript)
+
+**Manual startup:**
+
+```bash
+# Backend only
+make start-backend
+# or: cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+
+# Frontend only
+make start-frontend
+# or: cd frontend && npm start
+```
+
+**Features:**
+- Schema editor with validation
+- Input panel supporting all 5 formats (JSON, Tag, XML, Compact Binary, Native Binary)
+- Real-time conversion to all output formats
+- Binary hex viewer with decoded annotations
+- Copy-to-clipboard for all outputs
+- Default example demonstrates nested classes and subclasses
+
+See `doc/IMPLEMENTATION.md` for detailed architecture and `doc/QUICKSTART.md` for more information.
+
+### Python Library Usage
+
+For programmatic usage, see the sections below on compiling schemas and using codecs.
 
 ## Compiling Schemas
 

@@ -6,6 +6,8 @@ import { InputPanel } from './components/InputPanel';
 import { OutputPanel } from './components/OutputPanel';
 import { SaveModal } from './components/SaveModal';
 import { SchemaEditor } from './components/SchemaEditor';
+import { ToastContainer, useToast } from './components/Toast';
+import { EXAMPLES } from './data/examples';
 import { convertMessage, loadPlayground, validateSchema } from './services/api';
 import type { ConvertResponse, InputFormat } from './types';
 
@@ -45,6 +47,44 @@ function App() {
   const [isLoadingPlayground, setIsLoadingPlayground] = useState(false);
   const [loadedPlaygroundTitle, setLoadedPlaygroundTitle] = useState<string | null>(null);
 
+  // Toast notifications
+  const { toasts, removeToast, showSuccess, showError, showInfo } = useToast();
+
+  // Auto-save to localStorage (draft)
+  useEffect(() => {
+    const draft = { schema, inputFormat, inputData };
+    localStorage.setItem('blink-playground-draft', JSON.stringify(draft));
+  }, [schema, inputFormat, inputData]);
+
+  // Load draft from localStorage on mount (if not loading from URL)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const playgroundId = urlParams.get('p');
+
+    if (!playgroundId) {
+      const saved = localStorage.getItem('blink-playground-draft');
+      if (saved) {
+        try {
+          const draft = JSON.parse(saved);
+          // Only restore if it's different from the current default state
+          const isDifferent = draft.schema !== schema ||
+            draft.inputFormat !== inputFormat ||
+            draft.inputData !== inputData;
+
+          if (isDifferent && draft.schema) {
+            setSchema(draft.schema);
+            setInputFormat(draft.inputFormat || 'json');
+            setInputData(draft.inputData || '');
+            // Show toast after a brief delay to ensure toast system is ready
+            setTimeout(() => showInfo('Draft restored from last session'), 100);
+          }
+        } catch (e) {
+          console.error('Failed to load draft:', e);
+        }
+      }
+    }
+  }, []);
+
   // Load playground from URL parameter on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -67,21 +107,48 @@ function App() {
         setInputData(pg.input_data);
         setLoadedPlaygroundTitle(pg.title || null);
 
+        showSuccess(`Loaded playground: ${pg.title || 'Untitled'}`);
+
         // Auto-convert after loading
         setTimeout(() => {
           handleConvert();
         }, 500);
       } else {
         console.error('Failed to load playground:', response.error);
-        alert(`Failed to load playground: ${response.error || 'Unknown error'}`);
+        showError(`Failed to load playground: ${response.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error loading playground:', error);
-      alert('Failed to load playground. The link may be invalid or expired.');
+      showError('Failed to load playground. The link may be invalid or expired.');
     } finally {
       setIsLoadingPlayground(false);
     }
   };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Enter or Cmd+Enter: Convert
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleConvert();
+      }
+
+      // Ctrl+S or Cmd+S: Save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        setIsSaveModalOpen(true);
+      }
+
+      // Escape: Close modal
+      if (e.key === 'Escape' && isSaveModalOpen) {
+        setIsSaveModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSaveModalOpen]); // Re-bind when modal state changes
 
   const handleValidateSchema = async () => {
     console.log('Validating schema...');
@@ -91,15 +158,18 @@ function App() {
       if (response.valid) {
         setSchemaError(undefined);
         setIsSchemaValid(true);
+        showSuccess('Schema is valid!');
         setTimeout(() => setIsSchemaValid(false), 3000);
       } else {
         setSchemaError(response.error);
         setIsSchemaValid(false);
+        showError('Schema validation failed');
       }
     } catch (error) {
       console.error('Validation error:', error);
       setSchemaError('Failed to validate schema');
       setIsSchemaValid(false);
+      showError('Failed to validate schema');
     }
   };
 
@@ -117,12 +187,18 @@ function App() {
       console.log('Convert response:', response);
 
       setResult(response);
+      if (response.success) {
+        showSuccess('Message converted successfully!');
+      } else {
+        showError(`Conversion failed: ${response.error}`);
+      }
     } catch (error) {
       console.error('Convert error:', error);
       setResult({
         success: false,
         error: 'Failed to connect to API server. Make sure it is running on http://127.0.0.1:8000',
       });
+      showError('Failed to connect to API server');
     } finally {
       setIsLoading(false);
     }
@@ -135,7 +211,10 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 flex flex-col">
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
@@ -153,14 +232,38 @@ function App() {
                 Convert Blink messages between all supported formats
               </p>
             </div>
-            <button
-              onClick={() => setIsSaveModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium"
-              disabled={isLoadingPlayground}
-            >
-              <Save className="w-4 h-4" />
-              Save & Share
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Examples Dropdown */}
+              <select
+                onChange={(e) => {
+                  const example = EXAMPLES.find(ex => ex.id === e.target.value);
+                  if (example) {
+                    setSchema(example.schema);
+                    setInputFormat(example.inputFormat as InputFormat);
+                    setInputData(example.inputData);
+                    showInfo(`Loaded example: ${example.title}`);
+                  }
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                defaultValue=""
+              >
+                <option value="" disabled>📚 Load Example...</option>
+                {EXAMPLES.map(example => (
+                  <option key={example.id} value={example.id}>
+                    {example.title}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => setIsSaveModalOpen(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium"
+                disabled={isLoadingPlayground}
+              >
+                <Save className="w-4 h-4" />
+                Save & Share
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -184,8 +287,8 @@ function App() {
       />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-180px)]">
+      <main className="flex-1 max-w-7xl mx-auto px-4 py-6 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[600px]">
           {/* Left Column: Schema + Input */}
           <div className="flex flex-col gap-6">
             {/* Schema Editor */}
@@ -227,13 +330,15 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer className="max-w-7xl mx-auto px-4 py-4 text-center text-sm text-gray-600">
-        <p>
-          Backend API:{' '}
-          <code className="px-2 py-1 bg-gray-200 rounded text-xs">
-            {process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'}
-          </code>
-        </p>
+      <footer className="bg-gray-100 border-t border-gray-200 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 py-4 text-center text-sm text-gray-600">
+          <p>
+            Backend API:{' '}
+            <code className="px-2 py-1 bg-gray-200 rounded text-xs">
+              {process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'}
+            </code>
+          </p>
+        </div>
       </footer>
     </div>
   );

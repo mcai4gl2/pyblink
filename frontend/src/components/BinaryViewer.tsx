@@ -1,8 +1,9 @@
 // Binary Viewer Component - Hex dump and decoded view for binary formats
 
-import { Check, Copy, Download } from 'lucide-react';
+import { Check, Copy, Download, Search, X } from 'lucide-react';
 import React, { useState } from 'react';
 import type { BinaryOutput } from '../types';
+import { ByteSelectionPanel, type ByteSelection } from './ByteSelectionPanel';
 
 interface BinaryViewerProps {
     title: string;
@@ -14,6 +15,9 @@ export const BinaryViewer: React.FC<BinaryViewerProps> = ({ title, output, forma
     const [activeTab, setActiveTab] = useState<'hex' | 'decoded'>('hex');
     const [copiedHex, setCopiedHex] = useState(false);
     const [hoveredField, setHoveredField] = useState<string | null>(null);
+    const [selection, setSelection] = useState<ByteSelection | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showSearch, setShowSearch] = useState(false);
 
     const copyHex = async () => {
         try {
@@ -64,6 +68,17 @@ export const BinaryViewer: React.FC<BinaryViewerProps> = ({ title, output, forma
                 <h3 className="font-medium text-gray-800">{title}</h3>
                 <div className="flex items-center gap-2">
                     <button
+                        onClick={() => setShowSearch(!showSearch)}
+                        className={`px-3 py-1 text-sm flex items-center gap-1.5 rounded transition-colors ${showSearch
+                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                            }`}
+                        title="Search hex bytes"
+                    >
+                        <Search className="w-4 h-4" />
+                        Search
+                    </button>
+                    <button
                         onClick={copyHex}
                         className="px-3 py-1 text-sm text-gray-700 hover:text-gray-900 flex items-center gap-1.5 hover:bg-gray-100 rounded transition-colors"
                         title="Copy hex bytes"
@@ -96,8 +111,8 @@ export const BinaryViewer: React.FC<BinaryViewerProps> = ({ title, output, forma
                 <button
                     onClick={() => setActiveTab('hex')}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'hex'
-                            ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                            : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                        ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                         }`}
                 >
                     Hex View
@@ -105,18 +120,55 @@ export const BinaryViewer: React.FC<BinaryViewerProps> = ({ title, output, forma
                 <button
                     onClick={() => setActiveTab('decoded')}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'decoded'
-                            ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                            : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                        ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                         }`}
                 >
                     Decoded View
                 </button>
             </div>
 
+            {/* Search Bar */}
+            {showSearch && activeTab === 'hex' && (
+                <div className="bg-blue-50 border-b border-blue-200 p-3">
+                    <div className="flex items-center gap-2">
+                        <Search className="w-4 h-4 text-gray-500" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value.toUpperCase())}
+                            placeholder="Search hex bytes (e.g., 54 65 63 68 or 5465)"
+                            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                            onClick={() => {
+                                setSearchQuery('');
+                                setShowSearch(false);
+                            }}
+                            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
+                            title="Close search"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                    {searchQuery && (
+                        <p className="text-xs text-gray-600 mt-2">
+                            Searching for: <code className="bg-white px-2 py-0.5 rounded">{searchQuery}</code>
+                        </p>
+                    )}
+                </div>
+            )}
+
             {/* Content */}
             <div className="bg-white">
                 {activeTab === 'hex' ? (
-                    <HexView hex={output.hex} hoveredField={hoveredField} />
+                    <HexView
+                        hex={output.hex}
+                        hoveredField={hoveredField}
+                        selection={selection}
+                        onSelectionChange={setSelection}
+                        searchQuery={searchQuery}
+                    />
                 ) : (
                     <DecodedView
                         decoded={output.decoded}
@@ -125,6 +177,9 @@ export const BinaryViewer: React.FC<BinaryViewerProps> = ({ title, output, forma
                     />
                 )}
             </div>
+
+            {/* Byte Selection Panel */}
+            {activeTab === 'hex' && <ByteSelectionPanel selection={selection} />}
         </div>
     );
 };
@@ -133,17 +188,112 @@ export const BinaryViewer: React.FC<BinaryViewerProps> = ({ title, output, forma
 interface HexViewProps {
     hex: string;
     hoveredField: string | null;
+    selection: ByteSelection | null;
+    onSelectionChange: (selection: ByteSelection | null) => void;
+    searchQuery: string;
 }
 
-const HexView: React.FC<HexViewProps> = ({ hex }) => {
+const HexView: React.FC<HexViewProps> = ({ hex, selection, onSelectionChange, searchQuery }) => {
+    const [hoveredByte, setHoveredByte] = useState<{ offset: number; byte: string } | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState<number | null>(null);
+
     const lines = hex.split('\n');
 
+    // Parse all bytes with their absolute offsets
+    const allBytes: Array<{ offset: number; byte: string; lineIdx: number; byteIdx: number }> = [];
+    lines.forEach((line, lineIdx) => {
+        const [offsetStr, ...hexBytes] = line.split(/\s+/);
+        const baseOffset = parseInt(offsetStr.replace(':', ''), 16);
+        hexBytes.forEach((byte, byteIdx) => {
+            if (byte) {
+                allBytes.push({
+                    offset: baseOffset + byteIdx,
+                    byte: byte.toUpperCase(),
+                    lineIdx,
+                    byteIdx
+                });
+            }
+        });
+    });
+
+    // Handle byte click
+    const handleByteClick = (offset: number, byte: string) => {
+        if (isDragging) return;
+
+        // Single byte selection
+        onSelectionChange({
+            startOffset: offset,
+            endOffset: offset,
+            bytes: [byte]
+        });
+    };
+
+    // Handle drag start
+    const handleMouseDown = (offset: number) => {
+        setIsDragging(true);
+        setDragStart(offset);
+    };
+
+    // Handle drag over
+    const handleMouseEnter = (offset: number, byte: string) => {
+        setHoveredByte({ offset, byte });
+
+        if (isDragging && dragStart !== null) {
+            const start = Math.min(dragStart, offset);
+            const end = Math.max(dragStart, offset);
+            const selectedBytes = allBytes
+                .filter(b => b.offset >= start && b.offset <= end)
+                .map(b => b.byte);
+
+            onSelectionChange({
+                startOffset: start,
+                endOffset: end,
+                bytes: selectedBytes
+            });
+        }
+    };
+
+    // Handle drag end
+    const handleMouseUp = () => {
+        setIsDragging(false);
+        setDragStart(null);
+    };
+
+    // Check if byte matches search query
+    const matchesSearch = (byte: string, offset: number): boolean => {
+        if (!searchQuery) return false;
+        const cleanQuery = searchQuery.replace(/\s+/g, '');
+
+        // Check if this byte starts a match
+        const bytesFromHere = allBytes
+            .filter(b => b.offset >= offset)
+            .slice(0, cleanQuery.length / 2)
+            .map(b => b.byte)
+            .join('');
+
+        return bytesFromHere.startsWith(cleanQuery);
+    };
+
+    // Check if byte is selected
+    const isSelected = (offset: number): boolean => {
+        if (!selection) return false;
+        return offset >= selection.startOffset && offset <= selection.endOffset;
+    };
+
     return (
-        <div className="p-4 font-mono text-sm overflow-x-auto">
+        <div
+            className="p-4 font-mono text-sm overflow-x-auto select-none"
+            onMouseUp={handleMouseUp}
+            onMouseLeave={() => {
+                setHoveredByte(null);
+                handleMouseUp();
+            }}
+        >
             <div className="space-y-1">
-                {lines.map((line, idx) => {
-                    const [offset, ...hexBytes] = line.split(/\s+/);
-                    const bytesStr = hexBytes.join(' ');
+                {lines.map((line, lineIdx) => {
+                    const [offsetStr, ...hexBytes] = line.split(/\s+/);
+                    const baseOffset = parseInt(offsetStr.replace(':', ''), 16);
 
                     // Generate ASCII preview
                     const ascii = hexBytes
@@ -154,18 +304,78 @@ const HexView: React.FC<HexViewProps> = ({ hex }) => {
                         .join('');
 
                     return (
-                        <div key={idx} className="flex gap-4 hover:bg-gray-50 px-2 py-0.5 rounded">
-                            <span className="text-gray-500 select-none w-12">{offset}</span>
-                            <span className="text-blue-700 flex-1 font-semibold tracking-wider">
-                                {bytesStr}
-                            </span>
-                            <span className="text-gray-400 w-16 text-xs">
+                        <div key={lineIdx} className="flex gap-4 px-2 py-0.5 rounded hover:bg-gray-50">
+                            {/* Offset */}
+                            <span className="text-gray-500 select-none w-12">{offsetStr}</span>
+
+                            {/* Hex Bytes */}
+                            <div className="flex-1 flex flex-wrap gap-1">
+                                {hexBytes.map((byte, byteIdx) => {
+                                    if (!byte) return null;
+                                    const offset = baseOffset + byteIdx;
+                                    const selected = isSelected(offset);
+                                    const searched = matchesSearch(byte, offset);
+                                    const hovered = hoveredByte?.offset === offset;
+
+                                    // Add visual separator every 4 bytes
+                                    const separator = byteIdx > 0 && byteIdx % 4 === 0 ? (
+                                        <span key={`sep-${byteIdx}`} className="text-gray-300 select-none">│</span>
+                                    ) : null;
+
+                                    return (
+                                        <React.Fragment key={byteIdx}>
+                                            {separator}
+                                            <span
+                                                className={`
+                                                    px-1 py-0.5 rounded cursor-pointer transition-all relative
+                                                    ${selected ? 'bg-orange-200 border border-orange-500 font-bold text-orange-900' : ''}
+                                                    ${searched ? 'bg-yellow-200 border border-yellow-500 text-yellow-900' : ''}
+                                                    ${!selected && !searched ? 'text-blue-700 hover:bg-blue-100' : ''}
+                                                    ${hovered && !selected ? 'ring-2 ring-blue-400' : ''}
+                                                `}
+                                                onClick={() => handleByteClick(offset, byte)}
+                                                onMouseDown={() => handleMouseDown(offset)}
+                                                onMouseEnter={() => handleMouseEnter(offset, byte)}
+                                                title={`Offset: ${offset} | Hex: ${byte} | Dec: ${parseInt(byte, 16)} | ASCII: ${parseInt(byte, 16) >= 32 && parseInt(byte, 16) <= 126
+                                                    ? String.fromCharCode(parseInt(byte, 16))
+                                                    : '·'
+                                                    }`}
+                                            >
+                                                {byte}
+                                            </span>
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </div>
+
+                            {/* ASCII Preview */}
+                            <span className="text-gray-400 w-20 text-xs font-normal">
                                 {ascii}
                             </span>
                         </div>
                     );
                 })}
             </div>
+
+            {/* Hover Tooltip */}
+            {hoveredByte && !isDragging && (
+                <div className="fixed bottom-4 right-4 bg-gray-900 text-white text-xs rounded-lg shadow-lg p-3 z-50 pointer-events-none">
+                    <div className="space-y-1">
+                        <div><span className="text-gray-400">Offset:</span> <span className="font-mono">{hoveredByte.offset}</span></div>
+                        <div><span className="text-gray-400">Hex:</span> <span className="font-mono">{hoveredByte.byte}</span></div>
+                        <div><span className="text-gray-400">Dec:</span> <span className="font-mono">{parseInt(hoveredByte.byte, 16)}</span></div>
+                        <div><span className="text-gray-400">Bin:</span> <span className="font-mono">{parseInt(hoveredByte.byte, 16).toString(2).padStart(8, '0')}</span></div>
+                        <div>
+                            <span className="text-gray-400">ASCII:</span>{' '}
+                            <span className="font-mono">
+                                {parseInt(hoveredByte.byte, 16) >= 32 && parseInt(hoveredByte.byte, 16) <= 126
+                                    ? String.fromCharCode(parseInt(hoveredByte.byte, 16))
+                                    : '(non-printable)'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

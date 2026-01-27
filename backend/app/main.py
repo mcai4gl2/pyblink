@@ -50,10 +50,11 @@ async def root():
 
 
 # Import and include routers
-from app.api import convert, storage
+from app.api import analyze, convert, storage
 from app.services.storage import cleanup_old_playgrounds
 
 app.include_router(convert.router, prefix="/api", tags=["convert"])
+app.include_router(analyze.router, prefix="/api", tags=["analyze"])
 app.include_router(storage.router)
 
 

@@ -95,7 +95,7 @@ Student/1 -> string Name, u32[] Grades, string[] Courses`,
         schema: `namespace Profile
 
 # User profile with optional fields
-UserProfile/1 -> string Username, string? MiddleName, u32? Age, string? Bio`,
+UserProfile/1 -> string Username, string MiddleName?, u32 Age?, string Bio?`,
         inputFormat: 'json',
         inputData: `{"$type":"Profile:UserProfile","Username":"john_doe","MiddleName":null,"Age":25,"Bio":"Software developer"}`,
     },

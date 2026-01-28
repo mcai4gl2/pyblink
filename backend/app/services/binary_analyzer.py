@@ -249,7 +249,6 @@ class NativeBinaryAnalyzer:
         # Primitives
         if isinstance(type_ref, PrimitiveType):
             fmt, size, py_type, color = self._get_primitive_info(type_ref.primitive)
-            val = struct.unpack(fmt, self.mv[offset:offset+size])[0]
             
             # Decimal special handling
             if type_ref.primitive == PrimitiveKind.DECIMAL:
@@ -258,6 +257,17 @@ class NativeBinaryAnalyzer:
                  mant = struct.unpack('<q', self.mv[offset+1:offset+9])[0]
                  val = DecimalValue(exp, mant)
                  
+                 self.sections.append(BinarySection(
+                     id=section_id, type="field-value", start_offset=offset, end_offset=offset+size,
+                     label=name, field_path=path, data_type=py_type, 
+                     interpreted_value=str(val), color=color
+                 ))
+                 
+                 self.fields.append(MessageField(path, name, str(val), py_type, section_id))
+                 return val, offset + size
+
+            val = struct.unpack(fmt, self.mv[offset:offset+size])[0]
+            
             self.sections.append(BinarySection(
                 id=section_id, type="field-value", start_offset=offset, end_offset=offset+size,
                 label=name, field_path=path, data_type=py_type, 
@@ -314,7 +324,7 @@ class NativeBinaryAnalyzer:
                      return val, offset + 4
         
         # Nested Objects
-        if isinstance(type_ref, ObjectType):
+        if isinstance(type_ref, (ObjectType, DynamicGroupRef)):
              rel_offset = struct.unpack('<I', self.mv[offset:offset+4])[0]
              
              self.sections.append(BinarySection(

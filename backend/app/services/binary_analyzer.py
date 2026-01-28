@@ -323,12 +323,15 @@ class NativeBinaryAnalyzer:
                  interpreted_value=f"-> +{rel_offset}", color="pink"
              ))
              
+             # Add parent field first so it appears before children in UI
+             # Use the pointer section for highlighting
+             self.fields.append(MessageField(path, name, "Nested Message", "object", f"{section_id}-ptr"))
+             
              data_loc = offset + rel_offset
              
              # Recursively decode
              decoded_msg, _ = self._decode_message_recursive(data_loc, path)
              
-             self.fields.append(MessageField(path, name, "Nested Message", "object", section_id))
              return decoded_msg, offset + 4
 
         # Check for other variable types (Sequence, DynamicGroup, etc)
@@ -348,6 +351,28 @@ class NativeBinaryAnalyzer:
              
              self.fields.append(MessageField(path, name, "Sequence[...] (Details WIP)", "sequence", f"{section_id}-ptr"))
              return [], offset + 4
+
+        if isinstance(type_ref, StaticGroupRef):
+             group = type_ref.group
+             
+             # Native format flattens static groups into the parent's fixed area
+             # Record start for container section
+             group_start = offset
+             
+             # Add parent field first
+             self.fields.append(MessageField(path, name, "Nested Group", "group", section_id))
+             
+             # Decode fields inline
+             decoded_fields, new_offset = self._decode_group_fields(group, offset, path)
+             
+             # Create container section
+             self.sections.append(BinarySection(
+                 id=section_id, type="group", start_offset=group_start, end_offset=new_offset,
+                 label=name, field_path=path, data_type="group",
+                 interpreted_value="Group", color="gray"
+             ))
+             
+             return decoded_fields, new_offset
 
         # Fallback
         return None, offset + 4

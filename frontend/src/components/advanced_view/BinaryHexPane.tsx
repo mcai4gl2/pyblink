@@ -51,9 +51,60 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
         return byte.toString(16).toUpperCase().padStart(2, '0');
     };
 
+    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+    const [focusedByteIndex, setFocusedByteIndex] = React.useState<number>(0);
+
+    // Sync focused byte when external selection changes
+    React.useEffect(() => {
+        if (selectedSectionId && sections.length > 0) {
+            const section = sections.find(s => s.id === selectedSectionId);
+            if (section) {
+                setFocusedByteIndex(section.startOffset);
+                // Scroll into view
+                const element = document.getElementById(`byte-${section.startOffset}`);
+                if (element && scrollContainerRef.current) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+    }, [selectedSectionId, sections]);
+
+    // Keyboard navigation
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        let newIndex = focusedByteIndex;
+        const cols = 8;
+
+        switch (e.key) {
+            case 'ArrowRight': newIndex++; break;
+            case 'ArrowLeft': newIndex--; break;
+            case 'ArrowDown': newIndex += cols; break;
+            case 'ArrowUp': newIndex -= cols; break;
+            default: return; // Ignore other keys
+        }
+
+        // Clamp index
+        if (newIndex < 0) newIndex = 0;
+        if (newIndex >= bytes.length) newIndex = bytes.length - 1;
+
+        setFocusedByteIndex(newIndex);
+        e.preventDefault();
+
+        // Update selection if section changed
+        const newSection = getSectionForByte(newIndex);
+        if (newSection && newSection.id !== selectedSectionId) {
+            if (onSectionSelect) onSectionSelect(newSection.id);
+        }
+
+        // Ensure visible
+        const element = document.getElementById(`byte-${newIndex}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    };
+
     // Render grid
     const renderGrid = () => {
-        const rows = Math.ceil(bytes.length / 8); // 8 bytes per row for sidebar width
+        const rows = Math.ceil(bytes.length / 8);
         const grid = [];
 
         for (let r = 0; r < rows; r++) {
@@ -65,21 +116,26 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
                 const byte = bytes[index];
                 const section = getSectionForByte(index);
                 const isSelected = section && section.id === selectedSectionId;
+                const isFocused = index === focusedByteIndex;
 
                 const baseColor = section ? COLOR_MAP[section.color] || "bg-gray-50 text-gray-800" : "text-gray-400";
                 const selectedClass = isSelected ? "ring-2 ring-blue-500 z-10 scale-110 shadow-sm font-bold" : "";
+                const focusClass = isFocused ? "outline outline-2 outline-offset-1 outline-blue-600" : null;
 
                 rowBytes.push(
                     <div
                         key={index}
+                        id={`byte-${index}`}
                         className={`
                             px-1 rounded cursor-pointer select-none transition-all
                             text-center min-w-[2em] border border-transparent
-                            ${baseColor} ${selectedClass}
+                            ${baseColor} ${selectedClass} ${focusClass || ''}
                             hover:brightness-95
                         `}
-                        onClick={() => updateSelection(section?.id)}
-                        onMouseEnter={() => updateSelection(section?.id)}
+                        onClick={() => {
+                            setFocusedByteIndex(index);
+                            updateSelection(section?.id);
+                        }}
                         title={section ? `${section.label} (${section.type}): ${renderByteValue(byte, index)}` : `Offset ${index}`}
                     >
                         {renderByteValue(byte, index)}
@@ -108,7 +164,7 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
         return grid;
     };
 
-    // Handler to avoid clearing selection if hovering over empty space
+    // Handler to select section
     const updateSelection = (id?: string) => {
         if (onSectionSelect && id) {
             onSectionSelect(id);
@@ -154,7 +210,12 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
             </div>
 
             {/* Hex Grid Area */}
-            <div className="flex-1 overflow-auto p-4 content-start">
+            <div
+                ref={scrollContainerRef}
+                className="flex-1 overflow-auto p-4 content-start outline-none"
+                tabIndex={0}
+                onKeyDown={handleKeyDown}
+            >
                 <div className="inline-block min-w-full">
                     {bytes.length > 0 ? renderGrid() : (
                         <div className="text-gray-400 italic text-center mt-10">

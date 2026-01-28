@@ -18,6 +18,18 @@ export const MessageStructurePane: React.FC<MessageStructurePaneProps> = ({
     onFieldSelect
 }) => {
 
+    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+    // Scroll to selected field
+    React.useEffect(() => {
+        if (selectedSectionId && scrollContainerRef.current) {
+            const element = document.getElementById(`field-${selectedSectionId}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }, [selectedSectionId]);
+
     const renderField = (field: MessageField, index: number) => {
         const isSelected = field.binarySectionId === selectedSectionId;
         const depth = field.path.split('.').length - 1;
@@ -25,6 +37,7 @@ export const MessageStructurePane: React.FC<MessageStructurePaneProps> = ({
         return (
             <div
                 key={index}
+                id={field.binarySectionId ? `field-${field.binarySectionId}` : undefined}
                 className={`
                     flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors
                     ${isSelected ? 'bg-blue-100 ring-1 ring-blue-300' : 'hover:bg-gray-100'}
@@ -70,6 +83,7 @@ export const MessageStructurePane: React.FC<MessageStructurePaneProps> = ({
                         <Braces className="w-3.5 h-3.5" />
                         Structure
                     </button>
+                    {/* Tag format placeholder/toggle - keeping it as requested but it renders same structure for now */}
                     <button
                         onClick={() => onFormatChange('tag')}
                         className={`px-2 py-1 text-xs font-medium rounded flex items-center gap-1.5 transition-all
@@ -82,7 +96,10 @@ export const MessageStructurePane: React.FC<MessageStructurePaneProps> = ({
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-auto p-4 font-mono text-sm">
+            <div
+                ref={scrollContainerRef}
+                className="flex-1 overflow-auto p-4 font-mono text-sm"
+            >
                 {fields.length > 0 ? (
                     <div className="flex flex-col gap-0.5">
                         {fields.map((field, i) => renderField(field, i))}

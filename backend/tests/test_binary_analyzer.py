@@ -43,7 +43,10 @@ def test_comprehensive_analysis():
     Base/3 -> string Type
     Derived/4 : Base -> string Extra
     
-    # 4. Main Bundle
+    # 4. Enums
+    Color = Red/1 | Green/2
+
+    # 4. Main Bundle (Bump ID)
     Bundle/5 ->
         string ShortString,
         string LongString,
@@ -52,13 +55,16 @@ def test_comprehensive_analysis():
         Base* Poly,
         string NullString?,
         string PresentString?,
-        u32[] Seq
+        u32[] Seq,
+        Color MyColor
+
     """
     
     schema = compile_schema(schema_text)
     registry = TypeRegistry(schema)
     
     # Create Primitives Message
+    # ... (same)
     prims = Message(
         type_name=QName("Test", "Primitives"),
         fields={
@@ -87,40 +93,29 @@ def test_comprehensive_analysis():
     )
     
     # Create Main Bundle
-    long_string = "A" * 300 # > 255 bytes, forces pointer encoding in Native? or offset?
-    # Note: Native format inline string optimization is for small strings.
-    # Large strings use offset/pointer.
+    long_string = "A" * 300
     
     msg = Message(
         type_name=QName("Test", "Bundle"),
         fields={
             "ShortString": "Hi",
             "LongString": long_string,
-            "Prim": prims.fields, # Static Group expects dict of fields or StaticGroupValue? 
-                                  # Wait, Primitives/1 has ID, so it is a Group.
-                                  # "Primitives Prim" field -> StaticGroupRef.
-                                  # encode_native expects dict for StaticGroupRef.
+            "Prim": prims.fields, 
             "Addr": {"Street": "123 Main", "City": "NYC"},
-            "Poly": derived, # Dynamic Object expects Message
+            "Poly": derived, 
             "NullString": None,
             "PresentString": "Here",
-            "Seq": [1, 2, 3]
+            "Seq": [1, 2, 3],
+            "MyColor": "Green"
         }
     )
     
-    # Fix: Primitives is a Group with ID -> can be Dynamic or Static depending on usage.
-    # In "Primitives Prim", it is a TypeRef pointing to Group.
-    # If Group has ID, Blink usually treats it as Dynamic reference?
-    # No, syntax "Primitives Prim" means field is of type Primitives.
-    # If Primitives is defined as Group, it is a Static Group Reference if not 'object'.
-    # encode_native expects dict.
     msg.fields["Prim"] = prims.fields
     
     print("Encoding comprehensive message...")
     try:
         binary_data = encode_native(msg, registry)
         binary_hex = binary_data.hex()
-        # print(f"Hex: {binary_hex}") 
     except Exception as e:
         print(f"Encoding FAIL: {e}")
         raise e
@@ -148,63 +143,45 @@ def test_comprehensive_analysis():
     # Assertions
     
     # 1. Primitives
-    # They are inlined in Bundle -> Prim (StaticGroupRef).
-    # Since I removed "is_fixed_size" check, StaticGroupRef is ALWAYS inlined.
-    # Highlighting: "Prim" parent field should exist.
     assert find_field("Prim") is not None
-    assert find_section("Prim") is not None # The Gray container section
-    
-    # Check inner primitive values
+    assert find_section("Prim") is not None 
     assert find_section("U8Field")['interpretedValue'] == "255"
     assert find_section("I8Field")['interpretedValue'] == "-128"
     assert find_section("BoolTrue")['interpretedValue'] == "1"
     assert find_section("DecimalField") is not None 
-    # Decimal string repr might be "123.45" or raw "DecimalValue(exp=-2, mant=12345)"
-    # binary_analyzer uses str(val). DecimalValue.__str__?
-    # Let's check interpretedValue contains mantissa
     assert "12345" in find_section("DecimalField")['interpretedValue']
 
     # 2. Static Group (Addr)
     assert find_field("Addr") is not None
     assert find_section("Addr") is not None
-    # Addr -> Street (Variable String)
-    # Native Native means Addr is Inlined.
-    # Street is Variable String -> Pointer (4 bytes) in Fixed Area. "123 Main" in Data Area.
-    # We should see "Street" field and "StreetPtr" section? No, analyzer hides Ptr for Inline Strings?
-    # "Hi" is inline. "LongString" is ptr.
-    # "123 Main" is inline? 8 chars. Fits in 255.
-    # Analyzer: if inline string -> type='field-value', data_type='string (inline)'.
-    # if pointer -> type='pointer' + type='field-value'.
-    
     street_sec = find_section("Street")
     if street_sec:
-        # Check value
         assert "123 Main" in street_sec['interpretedValue']
 
     # 3. Dynamic Object (Poly)
-    # Expect Pointer section + Message fields
     assert find_section("PolyPtr") is not None
-    assert find_field("Poly") is not None # Parent field "Nested Message"
-    # Content of derived
+    assert find_field("Poly") is not None 
     assert find_field("Extra") is not None
     assert find_section("Extra")['interpretedValue'] == "Data"
     
     # 4. Optional
-    # NullString: Presence byte 0x00 + Padding.
-    # PresentString: Presence byte 0x01 + Value.
-    
     null_p = find_section("NullString?")
     assert null_p is not None and "Null" in null_p['interpretedValue']
-    # Start: "presence-NullString"
-    
     present_p = find_section("PresentString?")
     assert present_p is not None and "Present" in present_p['interpretedValue']
     assert find_section("PresentString")['interpretedValue'] == "Here"
     
     # 5. Sequence
-    # Currently Placeholder
     assert find_section("SeqPtr") is not None
     assert "Sequence" in find_field("Seq")['value']
+
+    # 6. Enum
+    color_sec = find_section("MyColor")
+    assert color_sec is not None
+    assert color_sec['dataType'] == "enum"
+    # "Green (2)"
+    assert "Green" in color_sec['interpretedValue']
+    assert "(2)" in color_sec['interpretedValue']
 
     print("All assertions passed!")
 

@@ -99,4 +99,21 @@ UserProfile/1 -> string Username, string MiddleName?, u32 Age?, string Bio?`,
         inputFormat: 'json',
         inputData: `{"$type":"Profile:UserProfile","Username":"john_doe","MiddleName":null,"Age":25,"Bio":"Software developer"}`,
     },
+    {
+        id: 'enum-usage',
+        title: 'Enum Usage',
+        description: 'Demonstrates enumerations',
+        schema: `namespace Enums
+
+# Color enumeration
+Color = Red/1 | Green/2 | Blue/3
+
+# Status enumeration (auto-numbered)
+Status = Active | Inactive | Suspended
+
+# Widget using enums
+Widget/1 -> Color Color, Status Status`,
+        inputFormat: 'json',
+        inputData: `{"$type":"Enums:Widget","Color":"Red","Status":"Inactive"}`,
+    },
 ];

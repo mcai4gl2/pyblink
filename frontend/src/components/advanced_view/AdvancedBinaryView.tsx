@@ -128,7 +128,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
 
                 {/* Bottom Panel - Byte Analysis */}
                 <div className="h-48 border-t border-gray-200 bg-gray-50 shrink-0">
-                    <ByteAnalysisPanel section={selectedSection} />
+                    <ByteAnalysisPanel section={selectedSection} hexData={cleanHexData} />
                 </div>
             </div>
         </div>

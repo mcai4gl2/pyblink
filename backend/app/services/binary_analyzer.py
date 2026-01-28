@@ -344,6 +344,23 @@ class NativeBinaryAnalyzer:
              
              return decoded_msg, offset + 4
 
+        if isinstance(type_ref, EnumType):
+            val = struct.unpack('<i', self.mv[offset:offset+4])[0]
+            try:
+                symbol = type_ref.to_symbol(val)
+                label_val = f"{symbol} ({val})"
+            except:
+                label_val = f"Unknown ({val})"
+            
+            self.sections.append(BinarySection(
+                id=section_id, type="field-value", start_offset=offset, end_offset=offset+4,
+                label=name, field_path=path, data_type="enum",
+                interpreted_value=label_val, color="purple"
+            ))
+            
+            self.fields.append(MessageField(path, name, label_val, "enum", section_id))
+            return label_val, offset + 4
+
         # Check for other variable types (Sequence, DynamicGroup, etc)
         # Simplified for MVP: Treat others as "Unknown" or just pointer skips if complex
         # Implement Sequence (common)

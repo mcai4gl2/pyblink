@@ -22,6 +22,7 @@ export interface BinaryDecodedView {
 
 export interface BinaryOutput {
     hex: string;
+    rawHex?: string;
     decoded: BinaryDecodedView;
 }
 
@@ -57,4 +58,40 @@ export interface ValidateSchemaResponse {
     column?: number;
 }
 
+
 export type InputFormat = 'tag' | 'json' | 'xml' | 'compact' | 'native';
+
+export interface BinarySection {
+    id: string;
+    type: 'header' | 'field-name' | 'field-value' | 'nested' | 'presence' | 'padding' | 'pointer' | 'data';
+    startOffset: number;
+    endOffset: number;
+    label: string;
+    dataType?: string;
+    fieldPath?: string;
+    rawValue?: string;
+    interpretedValue?: string;
+    color: string;
+}
+
+export interface MessageField {
+    path: string;
+    name: string;
+    value: any;
+    type: string;
+    binarySectionId?: string;
+    children?: MessageField[];
+}
+
+export interface AnalyzeBinaryRequest {
+    schema: string;
+    binary_hex: string;
+}
+
+export interface AnalyzeBinaryResponse {
+    success: boolean;
+    sections: BinarySection[];
+    fields: MessageField[];
+    error?: string;
+}
+

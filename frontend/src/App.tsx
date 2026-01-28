@@ -222,6 +222,8 @@ function App() {
       <AdvancedBinaryView
         isOpen={isAdvancedViewOpen}
         onClose={() => setIsAdvancedViewOpen(false)}
+        schema={schema}
+        hexData={result?.outputs?.native_binary?.rawHex || result?.outputs?.native_binary?.hex || ''}
       />
 
       {/* Header */}

@@ -8,17 +8,28 @@ import logging
 import struct
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # Add parent PyBlink directory to path
 pyblink_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(pyblink_root))
 
-from blink.codec import native
 from blink.runtime.errors import DecodeError
 from blink.runtime.registry import TypeRegistry
-from blink.runtime.values import Message
+from blink.runtime.values import DecimalValue, Message, StaticGroupValue
 from blink.schema.compiler import compile_schema
+from blink.schema.model import (
+    BinaryType,
+    DynamicGroupRef,
+    EnumType,
+    GroupDef,
+    ObjectType,
+    PrimitiveKind,
+    PrimitiveType,
+    SequenceType,
+    StaticGroupRef,
+    TypeRef,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +51,7 @@ class BinarySection:
         color: str = "blue"
     ):
         self.id = id
-        self.type = type  # 'header', 'field-name', 'field-value', 'nested'
+        self.type = type  # 'header', 'field-name', 'field-value', 'nested', 'pointer', 'data'
         self.start_offset = start_offset
         self.end_offset = end_offset
         self.label = label
@@ -98,240 +109,271 @@ class MessageField:
 
 
 class NativeBinaryAnalyzer:
-    """Analyzes Native Binary messages and generates section metadata."""
+    """Analyzes Native Binary messages and generates section metadata with precise offset tracking."""
     
     def __init__(self, data: bytes, registry: TypeRegistry):
-        """Initialize analyzer.
-        
-        Args:
-            data: Native Binary encoded bytes
-            registry: Type registry with schema
-        """
         self.data = data
+        self.mv = memoryview(data)
         self.registry = registry
         self.sections: List[BinarySection] = []
         self.fields: List[MessageField] = []
-        self.offset = 0
-    
-    def analyze(self) -> Dict[str, Any]:
-        """Analyze the binary data and generate section metadata.
         
-        Returns:
-            Dictionary with sections and fields
-        """
+    def analyze(self) -> Dict[str, Any]:
+        """Analyze the binary data."""
         try:
-            # Parse header
-            self._parse_header()
-            
-            # Decode the message to get field values
-            message, _ = native.decode_native(self.data, self.registry, offset=0)
-            
-            # Parse body fields
-            self._parse_body(message)
+            self._decode_message_recursive(
+                offset=0, 
+                path="", 
+                is_root=True
+            )
             
             return {
                 "success": True,
                 "sections": [section.to_dict() for section in self.sections],
                 "fields": [field.to_dict() for field in self.fields]
             }
-            
         except Exception as e:
-            logger.error(f"Binary analysis failed: {e}")
+            logger.error(f"Binary analysis failed: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e),
                 "sections": [],
                 "fields": []
             }
-    
-    def _parse_header(self):
-        """Parse the Native Binary header (16 bytes)."""
-        if len(self.data) < 16:
-            raise DecodeError("Data too short for Native Binary header")
+
+    def _decode_message_recursive(self, offset: int, path: str, is_root: bool = False) -> Tuple[Message, int]:
+        """Decode a message and record sections."""
+        start_offset = offset
         
-        # Message Size (4 bytes, u32 little-endian)
-        size = struct.unpack("<I", self.data[0:4])[0]
-        self.sections.append(BinarySection(
-            id="header-size",
-            type="header",
-            start_offset=0,
-            end_offset=4,
-            label="Message Size",
-            data_type="u32",
-            raw_value=self.data[0:4].hex().upper(),
-            interpreted_value=f"{size} bytes",
-            color="blue"
-        ))
+        # 1. Size (4 bytes)
+        if offset + 4 > len(self.mv):
+            raise DecodeError("Truncated message size")
+        size = struct.unpack('<I', self.mv[offset:offset+4])[0]
         
-        # Type ID (8 bytes, u64 little-endian)
-        type_id = struct.unpack("<Q", self.data[4:12])[0]
-        self.sections.append(BinarySection(
-            id="header-type-id",
-            type="header",
-            start_offset=4,
-            end_offset=12,
-            label="Type ID",
-            data_type="u64",
-            raw_value=self.data[4:12].hex().upper(),
-            interpreted_value=str(type_id),
-            color="blue"
-        ))
+        if is_root:
+            self.sections.append(BinarySection(
+                id="header-size", type="header", start_offset=offset, end_offset=offset+4,
+                label="Message Size", data_type="u32", 
+                interpreted_value=f"{size} bytes", color="blue"
+            ))
+        offset += 4
         
-        # Extension Offset (4 bytes, u32 little-endian)
-        ext_offset = struct.unpack("<I", self.data[12:16])[0]
-        self.sections.append(BinarySection(
-            id="header-ext-offset",
-            type="header",
-            start_offset=12,
-            end_offset=16,
-            label="Extension Offset",
-            data_type="u32",
-            raw_value=self.data[12:16].hex().upper(),
-            interpreted_value=str(ext_offset),
-            color="blue"
-        ))
+        end = offset + size if is_root else offset + size # Wait, this logic depends on where 'size' is relative to. 
+        # In Native format root message: size includes everything AFTER size preamble. 
+        # Actually in decode_native: end = offset + size (where offset is 4).
+        # So size is bytes FOLLOWING the size field.
         
-        self.offset = 16
-    
-    def _parse_body(self, message: Message):
-        """Parse the message body fields.
+        # 2. Type ID (8 bytes)
+        type_id = struct.unpack('<Q', self.mv[offset:offset+8])[0]
+        if is_root:
+            self.sections.append(BinarySection(
+                id="header-type-id", type="header", start_offset=offset, end_offset=offset+8,
+                label="Type ID", data_type="u64", 
+                interpreted_value=str(type_id), color="blue"
+            ))
+        offset += 8
         
-        Args:
-            message: Decoded message
-        """
-        # Get the group definition
-        group = self.registry.get_group_by_name(message.type_name)
+        # 3. Extension Offset (4 bytes)
+        ext_offset_pos = offset
+        ext_offset = struct.unpack('<I', self.mv[offset:offset+4])[0]
+        if is_root:
+            self.sections.append(BinarySection(
+                id="header-ext-offset", type="header", start_offset=offset, end_offset=offset+4,
+                label="Ext Offset", data_type="u32", 
+                interpreted_value=str(ext_offset), color="blue"
+            ))
+        offset += 4
         
-        # Parse each field
-        for field_def in group.all_fields():
-            field_name = field_def.name
-            field_value = message.fields.get(field_name)
+        # Get Group
+        group = self.registry.get_group_by_id(type_id)
+        if not group:
+            raise DecodeError(f"Unknown type ID: {type_id}")
             
-            if field_value is not None:
-                self._parse_field(field_name, field_value, field_def, path=field_name)
-    
-    def _parse_field(self, name: str, value: Any, field_def: Any, path: str):
-        """Parse a single field and create section metadata.
+        # Decode fields
+        fields_dict, offset = self._decode_group_fields(group, offset, path)
         
-        Args:
-            name: Field name
-            value: Field value
-            field_def: Field definition from schema
-            path: JSON path to this field
-        """
-        # Determine field type
-        field_type = self._get_field_type(value, field_def)
+        # Decode extensions (skip for now to keep simple, logic is similar)
         
-        # For now, we'll create a simplified section
-        # In a full implementation, we would track exact byte positions
+        return Message(type_name=group.name, fields=fields_dict), offset
+
+    def _decode_group_fields(self, group: GroupDef, offset: int, base_path: str) -> Tuple[Dict[str, Any], int]:
+        fields = {}
+        
+        for field in group.all_fields():
+            field_path = f"{base_path}.{field.name}" if base_path else field.name
+            
+            # Record start of field in fixed area
+            field_start = offset
+            
+            value, offset = self._decode_field(
+                field.type_ref, offset, field.optional, field.name, field_path
+            )
+            
+            if value is not None:
+                fields[field.name] = value
+                
+                # Check if we already added a section for this field (e.g. pointer)
+                # If it was a primitive inline field, we should add a section now
+                # If it was a variable field, _decode_field added the pointer/data sections
+                
+                # Heuristic: if no section added for this exact range, add one
+                # Actually _decode_value should prevent handling this here to allow specific type handling
+                pass
+
+        return fields, offset
+
+    def _decode_field(self, type_ref: TypeRef, offset: int, optional: bool, name: str, path: str) -> Tuple[Any, int]:
+        if optional:
+            presence = self.mv[offset]
+            self.sections.append(BinarySection(
+                id=f"presence-{path}", type="presence", start_offset=offset, end_offset=offset+1,
+                label=f"{name}?", data_type="bool", interpreted_value="Present" if presence else "Null", color="purple"
+            ))
+            offset += 1
+            
+            if presence == 0x00:
+                 # Skip zero bytes for null field
+                size = self._get_fixed_size(type_ref)
+                self.sections.append(BinarySection(
+                    id=f"null-{path}", type="padding", start_offset=offset, end_offset=offset+size,
+                    label=f"{name} (Null)", data_type="padding", interpreted_value="Null", color="gray"
+                ))
+                return None, offset + size
+        
+        return self._decode_value(type_ref, offset, name, path)
+
+    def _decode_value(self, type_ref: TypeRef, offset: int, name: str, path: str) -> Tuple[Any, int]:
+        
         section_id = f"field-{path.replace('.', '-').lower()}"
         
-        # Estimate field size and create section
-        # This is simplified - actual implementation would need precise offset tracking
-        field_start = self.offset
-        field_size = self._estimate_field_size(value, field_type)
-        field_end = field_start + field_size
-        
-        # Create binary section
-        section = BinarySection(
-            id=section_id,
-            type="field-value",
-            start_offset=field_start,
-            end_offset=field_end,
-            label=name,
-            field_path=path,
-            data_type=field_type,
-            raw_value=self.data[field_start:field_end].hex().upper() if field_end <= len(self.data) else "",
-            interpreted_value=str(value),
-            color=self._get_color_for_type(field_type)
-        )
-        self.sections.append(section)
-        
-        # Create message field
-        field = MessageField(
-            path=path,
-            name=name,
-            value=value,
-            type=field_type,
-            binary_section_id=section_id
-        )
-        self.fields.append(field)
-        
-        # Update offset
-        self.offset = field_end
-    
-    def _get_field_type(self, value: Any, field_def: Any) -> str:
-        """Determine the field type.
-        
-        Args:
-            value: Field value
-            field_def: Field definition
+        # Primitives
+        if isinstance(type_ref, PrimitiveType):
+            fmt, size, py_type, color = self._get_primitive_info(type_ref.primitive)
+            val = struct.unpack(fmt, self.mv[offset:offset+size])[0]
             
-        Returns:
-            Type string
-        """
-        if isinstance(value, bool):
-            return "bool"
-        elif isinstance(value, int):
-            return "i32"  # Simplified
-        elif isinstance(value, str):
-            return "string"
-        elif isinstance(value, float):
-            return "f64"
-        elif isinstance(value, bytes):
-            return "binary"
-        elif isinstance(value, Message):
-            return "object"
-        else:
-            return "unknown"
-    
-    def _estimate_field_size(self, value: Any, field_type: str) -> int:
-        """Estimate the size of a field in bytes.
-        
-        Args:
-            value: Field value
-            field_type: Field type
+            # Decimal special handling
+            if type_ref.primitive == PrimitiveKind.DECIMAL:
+                 # exp (1) + mant (8)
+                 exp = struct.unpack('<b', self.mv[offset:offset+1])[0]
+                 mant = struct.unpack('<q', self.mv[offset+1:offset+9])[0]
+                 val = DecimalValue(exp, mant)
+                 
+            self.sections.append(BinarySection(
+                id=section_id, type="field-value", start_offset=offset, end_offset=offset+size,
+                label=name, field_path=path, data_type=py_type, 
+                interpreted_value=str(val), color=color
+            ))
             
-        Returns:
-            Estimated size in bytes
-        """
-        if field_type == "bool":
-            return 1
-        elif field_type == "i32":
-            return 4
-        elif field_type == "i64":
-            return 8
-        elif field_type == "f64":
-            return 8
-        elif field_type == "string":
-            # Length prefix (1-5 bytes VLC) + string bytes
-            return 1 + len(str(value).encode('utf-8'))
-        elif field_type == "binary":
-            return len(value) if isinstance(value, bytes) else 0
-        else:
-            return 4  # Default estimate
-    
-    def _get_color_for_type(self, field_type: str) -> str:
-        """Get color coding for field type.
+            self.fields.append(MessageField(path, name, str(val), py_type, section_id))
+            return val, offset + size
+
+        # Strings / Binary
+        if isinstance(type_ref, BinaryType):
+            if type_ref.kind == "string":
+                 # Variable or Inline?
+                 # Assuming variable for simplified logic unless type_ref specifies size
+                 # Native format supports inline strings if size is set
+                 if type_ref.size and 1 <= type_ref.size <= 255:
+                     # Inline string
+                     size_byte = self.mv[offset]
+                     capacity = type_ref.size
+                     str_bytes = bytes(self.mv[offset+1:offset+1+size_byte])
+                     val = str_bytes.decode('utf-8')
+                     
+                     self.sections.append(BinarySection(
+                         id=section_id, type="field-value", start_offset=offset, end_offset=offset+1+capacity,
+                         label=name, field_path=path, data_type="string (inline)",
+                         interpreted_value=val, color="green"
+                     ))
+                     self.fields.append(MessageField(path, name, val, "string", section_id))
+                     return val, offset + 1 + capacity
+                 else:
+                     # Pointer string
+                     rel_offset = struct.unpack('<I', self.mv[offset:offset+4])[0]
+                     
+                     # 1. Pointer Section
+                     self.sections.append(BinarySection(
+                         id=f"{section_id}-ptr", type="pointer", start_offset=offset, end_offset=offset+4,
+                         label=f"{name}Ptr", field_path=path, data_type="u32",
+                         interpreted_value=f"-> +{rel_offset}", color="orange"
+                     ))
+                     
+                     # 2. Data Section
+                     data_loc = offset + rel_offset
+                     data_size = struct.unpack('<I', self.mv[data_loc:data_loc+4])[0]
+                     str_bytes = bytes(self.mv[data_loc+4:data_loc+4+data_size])
+                     val = str_bytes.decode('utf-8')
+                     
+                     self.sections.append(BinarySection(
+                         id=section_id, type="field-value", start_offset=data_loc, end_offset=data_loc+4+data_size,
+                         label=name, field_path=path, data_type="string",
+                         interpreted_value=val, color="green"
+                     ))
+                     
+                     self.fields.append(MessageField(path, name, val, "string", section_id))
+                     return val, offset + 4
         
-        Args:
-            field_type: Field type
-            
-        Returns:
-            Color name
-        """
-        color_map = {
-            "string": "green",
-            "i32": "yellow",
-            "i64": "yellow",
-            "u32": "yellow",
-            "u64": "yellow",
-            "f64": "yellow",
-            "bool": "purple",
-            "binary": "orange",
-            "object": "pink"
+        # Nested Objects
+        if isinstance(type_ref, ObjectType):
+             rel_offset = struct.unpack('<I', self.mv[offset:offset+4])[0]
+             
+             self.sections.append(BinarySection(
+                 id=f"{section_id}-ptr", type="pointer", start_offset=offset, end_offset=offset+4,
+                 label=f"{name}Ptr", field_path=path, data_type="u32",
+                 interpreted_value=f"-> +{rel_offset}", color="pink"
+             ))
+             
+             data_loc = offset + rel_offset
+             
+             # Recursively decode
+             decoded_msg, _ = self._decode_message_recursive(data_loc, path)
+             
+             self.fields.append(MessageField(path, name, "Nested Message", "object", section_id))
+             return decoded_msg, offset + 4
+
+        # Check for other variable types (Sequence, DynamicGroup, etc)
+        # Simplified for MVP: Treat others as "Unknown" or just pointer skips if complex
+        # Implement Sequence (common)
+        if isinstance(type_ref, SequenceType):
+             rel_offset = struct.unpack('<I', self.mv[offset:offset+4])[0]
+             
+             self.sections.append(BinarySection(
+                 id=f"{section_id}-ptr", type="pointer", start_offset=offset, end_offset=offset+4,
+                 label=f"{name}Ptr", field_path=path, data_type="u32",
+                 interpreted_value=f"-> +{rel_offset}", color="orange"
+             ))
+             
+             # Recursion would be needed for content
+             # For MVP, just mark the pointer
+             
+             self.fields.append(MessageField(path, name, "Sequence[...] (Details WIP)", "sequence", f"{section_id}-ptr"))
+             return [], offset + 4
+
+        # Fallback
+        return None, offset + 4
+
+    def _get_fixed_size(self, type_ref: TypeRef) -> int:
+        if isinstance(type_ref, PrimitiveType):
+            _, size, _, _ = self._get_primitive_info(type_ref.primitive)
+            return size
+        return 4 # Check Native spec for others
+        
+    def _get_primitive_info(self, kind: PrimitiveKind) -> Tuple[str, int, str, str]:
+        # returns (struct_fmt, size, type_name, color)
+        info = {
+            PrimitiveKind.BOOL: ('<B', 1, "bool", "purple"),
+            PrimitiveKind.U8: ('<B', 1, "u8", "yellow"),
+            PrimitiveKind.I8: ('<b', 1, "i8", "yellow"),
+            PrimitiveKind.U16: ('<H', 2, "u16", "yellow"),
+            PrimitiveKind.I16: ('<h', 2, "i16", "yellow"),
+            PrimitiveKind.U32: ('<I', 4, "u32", "yellow"),
+            PrimitiveKind.I32: ('<i', 4, "i32", "yellow"),
+            PrimitiveKind.U64: ('<Q', 8, "u64", "yellow"),
+            PrimitiveKind.I64: ('<q', 8, "i64", "yellow"),
+            PrimitiveKind.F64: ('<d', 8, "f64", "yellow"),
+            PrimitiveKind.DECIMAL: ('<x', 9, "decimal", "yellow"), # Special
         }
-        return color_map.get(field_type, "gray")
+        return info.get(kind, ('<I', 4, "unknown", "gray"))
 
 
 def analyze_native_binary(
@@ -360,10 +402,11 @@ def analyze_native_binary(
         return analyzer.analyze()
         
     except Exception as e:
-        logger.error(f"Analysis failed: {e}")
+        logger.error(f"Analysis failed: {e}", exc_info=True)
         return {
             "success": False,
             "error": str(e),
             "sections": [],
             "fields": []
         }
+

@@ -44,6 +44,7 @@ class BinaryOutput(BaseModel):
     """Binary format output with hex and decoded views."""
     
     hex: str
+    rawHex: Optional[str] = None
     decoded: BinaryDecodedView
 
 

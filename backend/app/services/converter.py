@@ -127,22 +127,24 @@ def encode_to_all_formats(
         compact_bytes = compact.encode_message(message, registry)
         outputs["compact_binary"] = {
             "hex": format_hex(compact_bytes),
+            "rawHex": compact_bytes.hex(),
             "decoded": decode_compact_binary(compact_bytes, message, registry)
         }
     except Exception as e:
         logger.warning(f"Compact binary encoding failed: {e}")
-        outputs["compact_binary"] = {"hex": f"Error: {str(e)}", "decoded": {}}
+        outputs["compact_binary"] = {"hex": f"Error: {str(e)}", "rawHex": "", "decoded": {}}
     
     try:
         # Native Binary format
         native_bytes = native.encode_native(message, registry)
         outputs["native_binary"] = {
             "hex": format_hex(native_bytes),
+            "rawHex": native_bytes.hex(),
             "decoded": decode_native_binary(native_bytes, message, registry)
         }
     except Exception as e:
         logger.warning(f"Native binary encoding failed: {e}")
-        outputs["native_binary"] = {"hex": f"Error: {str(e)}", "decoded": {}}
+        outputs["native_binary"] = {"hex": f"Error: {str(e)}", "rawHex": "", "decoded": {}}
     
     return outputs
 

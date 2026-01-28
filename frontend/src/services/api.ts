@@ -96,11 +96,28 @@ export const savePlayground = async (
     }
 };
 
+
 export const loadPlayground = async (
     playgroundId: string
 ): Promise<LoadPlaygroundResponse> => {
     try {
         const response = await api.get<LoadPlaygroundResponse>(`/api/load/${playgroundId}`);
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response) {
+            return error.response.data;
+        }
+        throw error;
+    }
+};
+
+import { AnalyzeBinaryRequest, AnalyzeBinaryResponse } from '../types';
+
+export const analyzeBinary = async (
+    request: AnalyzeBinaryRequest
+): Promise<AnalyzeBinaryResponse> => {
+    try {
+        const response = await api.post<AnalyzeBinaryResponse>('/api/analyze-binary', request);
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error) && error.response) {

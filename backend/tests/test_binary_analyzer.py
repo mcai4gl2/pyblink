@@ -8,64 +8,68 @@ backend_root = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_root))
 
 from app.services.binary_analyzer import analyze_native_binary
+from blink.schema.compiler import compile_schema
+from blink.runtime.registry import TypeRegistry
+from blink.runtime.values import Message, QName
+from blink.codec.native import encode_native
 
-
-def test_basic_native_binary_analysis():
-    """Test basic Native Binary analysis."""
+def test_full_roundtrip_analysis():
+    """Test analysis by encoding a real message and then analyzing it."""
     
-    # Simple schema
-    schema = """
-namespace Demo
-
-Company/1 -> 
-    string CompanyName,
-    i32 EmployeeCount
-"""
-    
-    # Example Native Binary hex (this is a simplified example)
-    # In reality, you would get this from encoding a message
-    # For now, we'll test with a minimal valid header
-    binary_hex = "10000000" + "0100000000000000" + "00000000"  # size + type_id + ext_offset
-    
-    result = analyze_native_binary(schema, binary_hex)
-    
-    print("Analysis Result:")
-    print(f"Success: {result['success']}")
-    print(f"Sections: {len(result.get('sections', []))}")
-    print(f"Fields: {len(result.get('fields', []))}")
-    
-    if result['success']:
-        print("\nSections:")
-        for section in result['sections']:
-            print(f"  - {section['label']}: offset {section['startOffset']}-{section['endOffset']}")
-    else:
-        print(f"Error: {result.get('error')}")
-
-
-def test_with_real_message():
-    """Test with a real encoded message."""
-    
-    schema = """
+    schema_text = """
 namespace Demo
 
 Person/4 -> 
     string Name,
     i32 Age
 """
+    schema = compile_schema(schema_text)
+    registry = TypeRegistry(schema)
     
-    # We would need to encode a real message to get valid binary data
-    # For now, this is a placeholder test
-    print("\nTest with real message:")
-    print("(Would need to encode a real message first)")
+    # Create valid message
+    msg = Message(
+        type_name=QName("Demo", "Person"),
+        fields={
+            "Name": "Alice",
+            "Age": 30
+        }
+    )
+    
+    # Encode to Native Binary
+    binary_data = encode_native(msg, registry)
+    binary_hex = binary_data.hex()
+    
+    print(f"Encoded Hex: {binary_hex}")
+    
+    # Analyze
+    result = analyze_native_binary(schema_text, binary_hex)
+    
+    print("Analysis Result:")
+    print(f"Success: {result['success']}")
+    if 'error' in result:
+        print(f"Error: {result['error']}")
+        return
 
+    print(f"Sections: {len(result['sections'])}")
+    print(f"Fields: {len(result['fields'])}")
+    
+    # Verify core sections exist
+    sections = result['sections']
+    labels = [s['label'] for s in sections]
+    print(f"Labels: {labels}")
+    
+    assert "Message Size" in labels
+    assert "Type ID" in labels
+    assert "NamePtr" in labels
+    assert "Alice" in [s.get('interpretedValue') for s in sections]
+    assert "30" in [s.get('interpretedValue') for s in sections]
 
 if __name__ == "__main__":
     print("=" * 60)
     print("Binary Analyzer Tests")
     print("=" * 60)
     
-    test_basic_native_binary_analysis()
-    test_with_real_message()
+    test_full_roundtrip_analysis()
     
     print("\n" + "=" * 60)
     print("Tests complete!")

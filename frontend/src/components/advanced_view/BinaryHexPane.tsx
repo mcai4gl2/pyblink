@@ -1,17 +1,127 @@
 import { Binary, Hash, Hexagon } from 'lucide-react';
 import React from 'react';
+import { BinarySection } from '../../types';
 
 interface BinaryHexPaneProps {
     viewMode: 'hex' | 'decimal' | 'binary';
     onViewModeChange: (mode: 'hex' | 'decimal' | 'binary') => void;
+    hexData?: string;
+    sections?: BinarySection[];
+    selectedSectionId?: string | null;
+    onSectionSelect?: (sectionId: string | null) => void;
 }
 
-export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({ viewMode, onViewModeChange }) => {
+const COLOR_MAP: Record<string, string> = {
+    blue: "bg-blue-100 text-blue-900 border-blue-200",
+    green: "bg-green-100 text-green-900 border-green-200",
+    yellow: "bg-amber-100 text-amber-900 border-amber-200",
+    purple: "bg-purple-100 text-purple-900 border-purple-200",
+    orange: "bg-orange-100 text-orange-900 border-orange-200",
+    red: "bg-red-100 text-red-900 border-red-200",
+    gray: "bg-gray-100 text-gray-600 border-gray-200",
+    pink: "bg-pink-100 text-pink-900 border-pink-200",
+};
+
+export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
+    viewMode,
+    onViewModeChange,
+    hexData = "",
+    sections = [],
+    selectedSectionId,
+    onSectionSelect
+}) => {
+    // Parse hex data into bytes
+    const bytes: number[] = [];
+    for (let i = 0; i < hexData.length; i += 2) {
+        bytes.push(parseInt(hexData.substring(i, i + 2), 16));
+    }
+
+    // Helper to get matching section for a byte index
+    const getSectionForByte = (index: number) => {
+        // Find deepest nested section (smallest range)
+        return sections
+            .filter(s => index >= s.startOffset && index < s.endOffset)
+            .sort((a, b) => (a.endOffset - a.startOffset) - (b.endOffset - b.startOffset))[0];
+    };
+
+    // Render a single byte value
+    const renderByteValue = (byte: number, index: number) => {
+        if (viewMode === 'decimal') return byte.toString().padStart(3, '0');
+        if (viewMode === 'binary') return byte.toString(2).padStart(8, '0');
+        return byte.toString(16).toUpperCase().padStart(2, '0');
+    };
+
+    // Render grid
+    const renderGrid = () => {
+        const rows = Math.ceil(bytes.length / 8); // 8 bytes per row for sidebar width
+        const grid = [];
+
+        for (let r = 0; r < rows; r++) {
+            const rowBytes = [];
+            for (let c = 0; c < 8; c++) {
+                const index = r * 8 + c;
+                if (index >= bytes.length) break;
+
+                const byte = bytes[index];
+                const section = getSectionForByte(index);
+                const isSelected = section && section.id === selectedSectionId;
+
+                const baseColor = section ? COLOR_MAP[section.color] || "bg-gray-50 text-gray-800" : "text-gray-400";
+                const selectedClass = isSelected ? "ring-2 ring-blue-500 z-10 scale-110 shadow-sm font-bold" : "";
+
+                rowBytes.push(
+                    <div
+                        key={index}
+                        className={`
+                            px-1 rounded cursor-pointer select-none transition-all
+                            text-center min-w-[2em] border border-transparent
+                            ${baseColor} ${selectedClass}
+                            hover:brightness-95
+                        `}
+                        onClick={() => updateSelection(section?.id)}
+                        onMouseEnter={() => updateSelection(section?.id)}
+                        title={section ? `${section.label} (${section.type}): ${renderByteValue(byte, index)}` : `Offset ${index}`}
+                    >
+                        {renderByteValue(byte, index)}
+                    </div>
+                );
+            }
+
+            // Add spacer after 4 bytes
+            if (rowBytes.length > 4) {
+                rowBytes.splice(4, 0, <div key={`sep-${r}`} className="w-2" />);
+            }
+
+            grid.push(
+                <div key={r} className="flex items-center mb-1">
+                    {/* Offset Label */}
+                    <div className="w-16 text-xs text-gray-400 font-mono text-right mr-3 select-none">
+                        {(r * 8).toString(16).toUpperCase().padStart(4, '0')}:
+                    </div>
+                    {/* Bytes */}
+                    <div className="flex gap-1 font-mono text-xs">
+                        {rowBytes}
+                    </div>
+                </div>
+            );
+        }
+        return grid;
+    };
+
+    // Handler to avoid clearing selection if hovering over empty space
+    const updateSelection = (id?: string) => {
+        if (onSectionSelect && id) {
+            onSectionSelect(id);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-white">
             {/* Toolbar */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
-                <span className="text-sm font-medium text-gray-700">Binary Representation</span>
+                <span className="text-sm font-medium text-gray-700">
+                    Binary ({bytes.length} bytes)
+                </span>
                 <div className="flex bg-gray-100 rounded p-0.5">
                     <button
                         onClick={() => onViewModeChange('hex')}
@@ -44,48 +154,13 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({ viewMode, onViewMo
             </div>
 
             {/* Hex Grid Area */}
-            <div className="flex-1 overflow-auto p-4 font-mono text-sm bg-gray-50/50">
-                <div className="text-gray-400 italic mb-4">
-                    {/* Placeholder for Hex Grid */}
-                    Binary data grid will appear here...
-                </div>
-
-                {/* Simulated Hex View */}
-                <div className="grid grid-cols-[auto_1fr] gap-4">
-                    {/* Offsets */}
-                    <div className="flex flex-col text-gray-400 select-none border-r border-gray-200 pr-3 text-right">
-                        <div>0000:</div>
-                        <div>0008:</div>
-                        <div>0010:</div>
-                    </div>
-
-                    {/* Bytes */}
-                    <div className="font-mono text-gray-800">
-                        {/* Row 1 */}
-                        <div className="flex gap-2 mb-1">
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">70</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
-                            <span className="text-gray-300">|</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">04</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
+            <div className="flex-1 overflow-auto p-4 content-start">
+                <div className="inline-block min-w-full">
+                    {bytes.length > 0 ? renderGrid() : (
+                        <div className="text-gray-400 italic text-center mt-10">
+                            No binary data available
                         </div>
-                        {/* Row 2 */}
-                        <div className="flex gap-2 mb-1">
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
-                            <span className="bg-blue-100 text-blue-900 px-0.5 rounded">00</span>
-                            <span className="text-gray-300">|</span>
-                            <span className="bg-green-100 text-green-900 px-0.5 rounded">54</span>
-                            <span className="bg-green-100 text-green-900 px-0.5 rounded">65</span>
-                            <span className="bg-green-100 text-green-900 px-0.5 rounded">63</span>
-                            <span className="bg-green-100 text-green-900 px-0.5 rounded">68</span>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>

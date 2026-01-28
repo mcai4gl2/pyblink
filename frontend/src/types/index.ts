@@ -93,5 +93,6 @@ export interface AnalyzeBinaryResponse {
     sections: BinarySection[];
     fields: MessageField[];
     error?: string;
+    root_type?: string;
 }
 

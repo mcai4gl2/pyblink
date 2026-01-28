@@ -121,7 +121,7 @@ class NativeBinaryAnalyzer:
     def analyze(self) -> Dict[str, Any]:
         """Analyze the binary data."""
         try:
-            self._decode_message_recursive(
+            msg, _ = self._decode_message_recursive(
                 offset=0, 
                 path="", 
                 is_root=True
@@ -130,7 +130,8 @@ class NativeBinaryAnalyzer:
             return {
                 "success": True,
                 "sections": [section.to_dict() for section in self.sections],
-                "fields": [field.to_dict() for field in self.fields]
+                "fields": [field.to_dict() for field in self.fields],
+                "root_type": msg.type_name
             }
         except Exception as e:
             logger.error(f"Binary analysis failed: {e}", exc_info=True)
@@ -138,7 +139,8 @@ class NativeBinaryAnalyzer:
                 "success": False,
                 "error": str(e),
                 "sections": [],
-                "fields": []
+                "fields": [],
+                "root_type": None
             }
 
     def _decode_message_recursive(self, offset: int, path: str, is_root: bool = False) -> Tuple[Message, int]:

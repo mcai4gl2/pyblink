@@ -335,6 +335,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
                             <button
                                 onClick={() => setIsHexSearch(!isHexSearch)}
                                 className={`text-xs px-2 py-1 rounded border ${isHexSearch ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                title="Toggle Hex Search"
                             >
                                 Hex
                             </button>
@@ -443,10 +444,11 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
                                 </div>
 
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <label htmlFor="diff-input" className="block text-sm font-medium text-gray-700 mb-1">
                                         {diffInputType === 'hex' ? 'Paste Hex Data:' : 'Paste JSON Object:'}
                                     </label>
                                     <textarea
+                                        id="diff-input"
                                         className="w-full h-40 border border-gray-300 rounded-md p-2 font-mono text-xs resize-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
                                         placeholder={diffInputType === 'hex' ? "0A 1B 2C ..." : "{\n  \"field\": \"value\"\n}"}
                                         value={diffInput}

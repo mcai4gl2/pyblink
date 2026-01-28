@@ -411,6 +411,7 @@ AdvancedBinaryView
 - [ ] Add annotations (user notes on specific bytes)
 - [x] Performance optimization for large messages (Virtual Scrolling)
 - [x] Add keyboard shortcuts reference
+- [x] Automated Testing Suite (Unit + Playwright E2E)
 
 **Advanced Features:**
 - **Search**: Find specific byte patterns or field names

@@ -1,12 +1,13 @@
 // Main App Component
 
-import { Save } from 'lucide-react';
+import { Microscope, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { InputPanel } from './components/InputPanel';
 import { OutputPanel } from './components/OutputPanel';
 import { SaveModal } from './components/SaveModal';
 import { SchemaEditor } from './components/SchemaEditor';
 import { ToastContainer, useToast } from './components/Toast';
+import { AdvancedBinaryView } from './components/advanced_view/AdvancedBinaryView';
 import { EXAMPLES } from './data/examples';
 import { convertMessage, loadPlayground, validateSchema } from './services/api';
 import type { ConvertResponse, InputFormat } from './types';
@@ -44,6 +45,7 @@ function App() {
   const [schemaError, setSchemaError] = useState<string | undefined>();
   const [isSchemaValid, setIsSchemaValid] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isAdvancedViewOpen, setIsAdvancedViewOpen] = useState(false);
   const [isLoadingPlayground, setIsLoadingPlayground] = useState(false);
   const [loadedPlaygroundTitle, setLoadedPlaygroundTitle] = useState<string | null>(null);
 
@@ -141,14 +143,15 @@ function App() {
       }
 
       // Escape: Close modal
-      if (e.key === 'Escape' && isSaveModalOpen) {
-        setIsSaveModalOpen(false);
+      if (e.key === 'Escape') {
+        if (isSaveModalOpen) setIsSaveModalOpen(false);
+        if (isAdvancedViewOpen) setIsAdvancedViewOpen(false);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSaveModalOpen]); // Re-bind when modal state changes
+  }, [isSaveModalOpen, isAdvancedViewOpen]);
 
   const handleValidateSchema = async () => {
     console.log('Validating schema...');
@@ -215,6 +218,12 @@ function App() {
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
+      {/* Advanced Binary View Modal */}
+      <AdvancedBinaryView
+        isOpen={isAdvancedViewOpen}
+        onClose={() => setIsAdvancedViewOpen(false)}
+      />
+
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
@@ -254,6 +263,15 @@ function App() {
                   </option>
                 ))}
               </select>
+
+              <button
+                onClick={() => setIsAdvancedViewOpen(true)}
+                className="px-3 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-colors flex items-center gap-2 font-medium"
+                title="Open Advanced Binary Inspector"
+              >
+                <Microscope className="w-4 h-4" />
+                Inspector
+              </button>
 
               <button
                 onClick={() => setIsSaveModalOpen(true)}

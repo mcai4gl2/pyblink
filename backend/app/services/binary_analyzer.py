@@ -200,7 +200,7 @@ class NativeBinaryAnalyzer:
             message: Decoded message
         """
         # Get the group definition
-        group = self.registry.get_group_by_id(message.type_id)
+        group = self.registry.get_group_by_name(message.type_name)
         
         # Parse each field
         for field_def in group.all_fields():

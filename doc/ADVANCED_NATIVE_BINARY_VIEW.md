@@ -268,13 +268,13 @@ New endpoint: `POST /api/analyze-binary`
 **Goal:** Build the basic UI components and layout
 
 **Tasks:**
-- [ ] Create `AdvancedBinaryView.tsx` main component
-- [ ] Create `MessageStructurePane.tsx` (left pane)
-- [ ] Create `BinaryHexPane.tsx` (right pane)
-- [ ] Create `ByteAnalysisPanel.tsx` (bottom panel)
-- [ ] Implement split-pane layout with resizable divider
-- [ ] Add format toggle (JSON/Tag)
-- [ ] Add view mode toggle (Hex/Decimal/Binary)
+- [x] Create `AdvancedBinaryView.tsx` main component
+- [x] Create `MessageStructurePane.tsx` (left pane)
+- [x] Create `BinaryHexPane.tsx` (right pane)
+- [x] Create `ByteAnalysisPanel.tsx` (bottom panel)
+- [x] Implement split-pane layout with resizable divider
+- [x] Add format toggle (JSON/Tag)
+- [x] Add view mode toggle (Hex/Decimal/Binary)
 
 **Component Hierarchy:**
 ```

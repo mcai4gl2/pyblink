@@ -85,8 +85,6 @@ export const ByteAnalysisPanel: React.FC<ByteAnalysisPanelProps> = ({ section, h
         return Array.from(bytes).map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.').join('');
     };
 
-    const isIntegerType = ['u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64'].includes(section.dataType || '');
-
     return (
         <div className="h-full flex flex-col bg-gray-50">
             {/* Header */}

@@ -105,6 +105,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
                 setDiffInput("");
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, schema, cleanHexData]);
 
     const fetchAnalysis = async () => {
@@ -211,9 +212,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
         }
 
         let searchHex = "";
-        const targetData = isDiffMode ? diffHexData.replace(/[^0-9A-Fa-f]/g, '') : cleanHexData; // Search in active? Or always original?
-        // Let's assume search always targets Original for now, or we can't easily highlight both correctly.
-        // Actually, let's keep searching Original.
+        // Search always targets Original data
 
         if (isHexSearch) {
             searchHex = searchText.replace(/[^0-9A-Fa-f]/g, '');
@@ -256,7 +255,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
             setCurrentMatchIdx(-1);
         }
 
-    }, [searchText, isHexSearch, cleanHexData, isDiffMode, diffHexData]); // If logic changes for diff, update deps
+    }, [searchText, isHexSearch, cleanHexData]);
 
     const nextMatch = () => {
         if (matchOccurrences.length === 0) return;
@@ -280,6 +279,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
         };
         window.addEventListener('keydown', handleSearchKeys);
         return () => window.removeEventListener('keydown', handleSearchKeys);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isSearchOpen, matchOccurrences.length]);
 
     if (!isOpen) return null;

@@ -85,6 +85,7 @@ function App() {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load playground from URL parameter on mount
@@ -95,6 +96,7 @@ function App() {
     if (playgroundId) {
       loadPlaygroundById(playgroundId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadPlaygroundById = async (playgroundId: string) => {
@@ -151,6 +153,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSaveModalOpen, isAdvancedViewOpen]);
 
   const handleValidateSchema = async () => {

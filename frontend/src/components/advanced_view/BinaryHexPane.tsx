@@ -158,6 +158,7 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
             setFocusedByteIndex(currentMatchByteIndex);
             scrollToByte(currentMatchByteIndex, 'center');
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentMatchByteIndex]);
 
     // Auto-scroll logic for section selection
@@ -168,6 +169,7 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
                 scrollToByte(focusedByteIndex, 'center');
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedSectionId]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {

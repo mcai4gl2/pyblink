@@ -1,6 +1,6 @@
 # PyBlink
 
-PyBlink is a Blink protocol implementation in Python, providing schema parsing, multiple codec formats, and dynamic schema exchange capabilities. The project is housed inside `py-learn/projects/pyblink` and integrates with the repo's devcontainer workflow.
+PyBlink is a Blink protocol implementation in Python, providing schema parsing, multiple codec formats, and dynamic schema exchange capabilities.
 
 ## Features
 
@@ -70,23 +70,21 @@ Blink schemas (`.blink` files) can be parsed and resolved in a single call via `
 
 Example usage:
 
-```bash
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 - <<'PY'
+```python
 from blink.schema import compile_schema_file
 from blink.runtime.registry import TypeRegistry
 
-schema = compile_schema_file("projects/pyblink/schema/examples/trading.blink")
+schema = compile_schema_file("schema/examples/trading.blink")
 registry = TypeRegistry.from_schema(schema)
 
 order = registry.get_group_by_name("Trading:Order")
 print("Order fields:", [field.name for field in order.fields])
-PY
 ```
 
 You can also skip the intermediate `Schema` object:
 
 ```python
-registry = TypeRegistry.from_schema_file("projects/pyblink/schema/examples/trading.blink")
+registry = TypeRegistry.from_schema_file("schema/examples/trading.blink")
 ```
 
 ## Codec Usage
@@ -97,45 +95,40 @@ The `blink.codec.compact` module provides schema-aware `encode_message`/`decode_
 
 **Quick demo:**
 ```bash
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 projects/pyblink/scripts/encode_trading_order.py
+python3 scripts/encode_trading_order.py
 ```
 
 **JSON-driven encoding:**
 ```bash
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
-  projects/pyblink/scripts/encode_payload.py \
-  --schema projects/pyblink/schema/examples/trading.blink \
+python3 scripts/encode_payload.py \
+  --schema schema/examples/trading.blink \
   --type Trading:OrderEvent \
-  --input projects/pyblink/schema/examples/order_event.json
+  --input schema/examples/order_event.json
 ```
 
 **Decoding:**
 ```bash
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
-  projects/pyblink/scripts/decode_payload.py \
-  --schema projects/pyblink/schema/examples/trading.blink \
+python3 scripts/decode_payload.py \
+  --schema schema/examples/trading.blink \
   --input /path/to/payload.bin
 ```
 
 **Advanced decoding options:**
 ```bash
 # Decode hex string from stdin
-echo "a1b2c3" | docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
-  projects/pyblink/scripts/decode_payload.py \
-  --schema projects/pyblink/schema/examples/trading.blink \
+echo "a1b2c3" | python3 scripts/decode_payload.py \
+  --schema schema/examples/trading.blink \
   --input - --hex
 
 # Pretty print with custom indentation
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
-  projects/pyblink/scripts/decode_payload.py \
-  --schema projects/pyblink/schema/examples/trading.blink \
+python3 scripts/decode_payload.py \
+  --schema schema/examples/trading.blink \
   --input /path/to/payload.bin \
   --indent 4 --sort-keys
 
 # Output in Tag or XML format
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
-  projects/pyblink/scripts/decode_payload.py \
-  --schema projects/pyblink/schema/examples/trading.blink \
+python3 scripts/decode_payload.py \
+  --schema schema/examples/trading.blink \
   --input /path/to/payload.bin \
   --format tag
 ```
@@ -277,25 +270,21 @@ messages = decode_stream_with_schema_exchange(buffer, registry)
 **Schema Management CLI:**
 ```bash
 # Validate a schema
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
-  projects/pyblink/scripts/schema_manager.py validate \
-  --schema projects/pyblink/schema/examples/trading.blink
+python3 scripts/schema_manager.py validate \
+  --schema schema/examples/trading.blink
 
 # Export schema to JSON
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
-  projects/pyblink/scripts/schema_manager.py export \
-  --schema projects/pyblink/schema/examples/trading.blink \
+python3 scripts/schema_manager.py export \
+  --schema schema/examples/trading.blink \
   --output schema.json --pretty
 
 # Create a GroupDecl message
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
-  projects/pyblink/scripts/schema_manager.py create-group-decl \
+python3 scripts/schema_manager.py create-group-decl \
   --ns Test --name MyType --id 100 --hex
 
 # Apply schema transport messages
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
-  projects/pyblink/scripts/schema_manager.py apply \
-  --schema projects/pyblink/schema/examples/trading.blink \
+python3 scripts/schema_manager.py apply \
+  --schema schema/examples/trading.blink \
   --input updates.bin
 ```
 
@@ -303,21 +292,17 @@ docker exec -u vscode -w /workspaces/py-learn <container-id> python3 \
 
 Run the test suite:
 ```bash
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 -m pytest projects/pyblink/tests -v
+python3 -m pytest tests -v
 ```
 
 Run with coverage:
 ```bash
-docker exec -u vscode -w /workspaces/py-learn <container-id> python3 -m pytest projects/pyblink/tests --cov=projects/pyblink --cov-report=term-missing
+python3 -m pytest tests --cov=blink --cov-report=term-missing
 ```
 
 ## Development
 
-The project uses the standard py-learn devcontainer workflow. See `.clinerules` for details on:
-- Running commands inside the dev container with `-u vscode` flag
-- Creating and managing virtual environments
-- Testing requirements and coverage targets
-- VS Code configuration management
+The project includes a `.devcontainer` configuration for VS Code.
 
 ## Status
 

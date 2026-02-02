@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api", tags=["storage"])
 
 class SavePlaygroundRequest(BaseModel):
     """Request model for saving a playground."""
-    schema: str = Field(..., description="Blink schema definition")
+    schema_content: str = Field(..., alias="schema", description="Blink schema definition")
     input_format: str = Field(..., description="Input format (tag, json, xml, compact, native)")
     input_data: str = Field(..., description="Input message data")
     title: Optional[str] = Field(None, description="Optional playground title")
@@ -71,7 +71,7 @@ async def save_playground(request: SavePlaygroundRequest):
         
         # Save playground
         playground_id, file_path = storage.save_playground(
-            schema=request.schema,
+            schema=request.schema_content,
             input_format=request.input_format,
             input_data=request.input_data,
             title=request.title,

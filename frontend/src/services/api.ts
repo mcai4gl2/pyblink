@@ -2,6 +2,8 @@
 
 import axios from 'axios';
 import type {
+    AnalyzeBinaryRequest,
+    AnalyzeBinaryResponse,
     ConvertRequest,
     ConvertResponse,
     ValidateSchemaRequest,
@@ -110,8 +112,6 @@ export const loadPlayground = async (
         throw error;
     }
 };
-
-import { AnalyzeBinaryRequest, AnalyzeBinaryResponse } from '../types';
 
 export const analyzeBinary = async (
     request: AnalyzeBinaryRequest

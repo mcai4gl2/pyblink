@@ -32,7 +32,7 @@ export default defineConfig({
             // Then set PYTHONPATH to include current dir (.) so 'blink' and 'backend' are visible?
             // Or just rely on standard structure.
             // Assuming 'python' is in path and has dependencies installed.
-            command: 'cd .. && python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000',
+            command: 'cd ../backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000',
             url: 'http://127.0.0.1:8000/docs',
             reuseExistingServer: !process.env.CI,
             timeout: 120 * 1000,

@@ -76,14 +76,20 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
-      - name: Start backend
-        run: |
-          cd backend && uvicorn app.main:app --port 8000 &
-          sleep 5
+      - name: Build Frontend for CI
+        working-directory: frontend
+        run: npm run build
+        env:
+          REACT_APP_API_URL: http://127.0.0.1:8000
+          CI: true
 
       - name: Run Playwright tests
         working-directory: frontend
         run: npm run test:e2e
+        env:
+          CI: true
+          USE_BUILD: true  # Signal to use production build
+          DEBUG: pw:api,pw:browser*  # Enable Playwright debug logging
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

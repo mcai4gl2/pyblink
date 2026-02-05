@@ -1,6 +1,7 @@
 """FastAPI application for Blink Message Playground."""
 
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,10 +23,19 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Add CORS middleware for local development
+# CORS configuration - supports both local development and production
+# ALLOWED_ORIGINS environment variable should be comma-separated list of origins
+allowed_origins_str = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000"  # Default to local development
+)
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+
+logger.info(f"CORS allowed origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # React dev server
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

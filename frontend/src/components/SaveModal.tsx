@@ -154,6 +154,18 @@ export const SaveModal: React.FC<SaveModalProps> = ({
                                 </p>
                             </div>
 
+                            {/* Warning about temporary saves */}
+                            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                <p className="text-sm text-yellow-800 font-medium mb-1">
+                                    ⚠️ Important: Temporary Save
+                                </p>
+                                <p className="text-xs text-yellow-700">
+                                    Saved playgrounds are temporary and may be lost when the service restarts 
+                                    (typically after 15 minutes of inactivity or during deployments). 
+                                    Copy and save this URL immediately if you need it later.
+                                </p>
+                            </div>
+
                             {/* Shareable URL */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -187,7 +199,7 @@ export const SaveModal: React.FC<SaveModalProps> = ({
 
                             {/* Info */}
                             <p className="text-xs text-gray-500">
-                                This link will be available for 30 days. Anyone with the link can view this playground.
+                                Anyone with this link can view this playground while it's available.
                             </p>
 
                             {/* Close Button */}

@@ -15,6 +15,12 @@ PyBlink is a Blink protocol implementation in Python, providing schema parsing, 
 - **CLI Tooling**: Command-line utilities for encoding/decoding and schema management
 - **Web Playground**: Interactive web application for testing Blink message conversions
 
+## Live Demo
+
+🚀 **Try PyBlink now**: [https://pyblink.pages.dev/](https://pyblink.pages.dev/)
+
+The Blink Message Playground is deployed and ready to use! No installation required - just open the link and start converting messages between all supported formats.
+
 ## Quick Start
 
 ### Blink Message Playground (Web UI)

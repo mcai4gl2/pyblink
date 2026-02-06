@@ -1,11 +1,33 @@
 @echo off
-REM Blink Message Playground - Startup Script (Batch)
+REM Blink Message Playground - Startup Script
 REM Starts both backend and frontend servers
 
 echo =========================================
 echo   Blink Message Playground Startup
 echo =========================================
 echo.
+
+REM Check if backend dependencies are installed
+if not exist "backend\.venv\Scripts\python.exe" (
+    echo ERROR: Backend not set up!
+    echo.
+    echo Please run setup.bat first to install dependencies:
+    echo   setup.bat
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Check if frontend dependencies are installed
+if not exist "frontend\node_modules" (
+    echo ERROR: Frontend not set up!
+    echo.
+    echo Please run setup.bat first to install dependencies:
+    echo   setup.bat
+    echo.
+    pause
+    exit /b 1
+)
 
 echo [1/2] Starting Backend Server...
 echo       Location: backend/

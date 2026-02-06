@@ -1,0 +1,250 @@
+# ============================================
+# PyBlink Project .gitignore
+# ============================================
+
+# ============================================
+# Python / Backend
+# ============================================
+
+# Virtual environments
+backend/.venv/
+backend/venv/
+backend/env/
+backend/ENV/
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environments
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# ============================================
+# Node.js / Frontend
+# ============================================
+
+# Dependencies
+frontend/node_modules/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Production build
+frontend/build/
+frontend/dist/
+
+# Testing
+frontend/coverage/
+frontend/.nyc_output
+
+# Misc
+.DS_Store
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ============================================
+# Playwright / E2E Testing
+# ============================================
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
+frontend/.playwright/
+
+# ============================================
+# Project Specific
+# ============================================
+
+# Saved playgrounds (temporary user data)
+backend/data/playgrounds/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ============================================
+# IDE / Editor
+# ============================================
+
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains IDEs (PyCharm, WebStorm, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ============================================
+# Git
+# ============================================
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Patch files
+*.patch
+*.diff
+
+# ============================================
+# Documentation
+# ============================================
+
+# Sphinx documentation
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# ============================================
+# Miscellaneous
+# ============================================
+
+# Compiled files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Keep important empty directories
+!.gitkeep

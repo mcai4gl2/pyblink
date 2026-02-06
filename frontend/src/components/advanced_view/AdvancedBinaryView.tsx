@@ -26,6 +26,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+    const [relatedSectionIds, setRelatedSectionIds] = useState<string[]>([]);
 
     // State for toggles
     const [structureFormat, setStructureFormat] = useState<'json' | 'tag'>('json');
@@ -95,6 +96,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
                 setRootTypeName(undefined);
                 setError(null);
                 setSelectedSectionId(null);
+                setRelatedSectionIds([]);
                 // Reset search
                 setSearchText("");
                 setSearchMatches([]);
@@ -281,6 +283,38 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
         return () => window.removeEventListener('keydown', handleSearchKeys);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isSearchOpen, matchOccurrences.length]);
+
+    // Find related sections (pointer <-> data) when selection changes
+    useEffect(() => {
+        if (!selectedSectionId || sections.length === 0) {
+            setRelatedSectionIds([]);
+            return;
+        }
+
+        const related: string[] = [];
+        const selected = sections.find(s => s.id === selectedSectionId);
+
+        if (selected) {
+            // If this is a pointer, find its data section
+            if (selected.id.endsWith('-ptr')) {
+                const dataId = selected.id.replace('-ptr', '');
+                const dataSection = sections.find(s => s.id === dataId);
+                if (dataSection) {
+                    related.push(dataId);
+                }
+            }
+            // If this is a data section, find its pointer
+            else if (selected.type === 'field-value' || selected.type === 'data') {
+                const ptrId = `${selected.id}-ptr`;
+                const ptrSection = sections.find(s => s.id === ptrId);
+                if (ptrSection) {
+                    related.push(ptrId);
+                }
+            }
+        }
+
+        setRelatedSectionIds(related);
+    }, [selectedSectionId, sections]);
 
     if (!isOpen) return null;
 
@@ -490,6 +524,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
                                     hexData={cleanHexData}
                                     sections={sections}
                                     selectedSectionId={selectedSectionId}
+                                    relatedSectionIds={relatedSectionIds}
                                     onSectionSelect={setSelectedSectionId}
                                     searchMatches={searchMatches}
                                     currentMatchByteIndex={currentSearchFocus}
@@ -531,6 +566,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
                                     fields={fields}
                                     onFieldSelect={(id) => setSelectedSectionId(id)}
                                     selectedSectionId={selectedSectionId}
+                                    relatedSectionIds={relatedSectionIds}
                                 />
                             </div>
 
@@ -541,6 +577,7 @@ export const AdvancedBinaryView: React.FC<AdvancedBinaryViewProps> = ({ isOpen, 
                                     hexData={cleanHexData}
                                     sections={sections}
                                     selectedSectionId={selectedSectionId}
+                                    relatedSectionIds={relatedSectionIds}
                                     onSectionSelect={setSelectedSectionId}
                                     searchMatches={searchMatches}
                                     currentMatchByteIndex={currentSearchFocus}

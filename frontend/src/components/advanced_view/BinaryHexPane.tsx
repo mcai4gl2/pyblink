@@ -8,6 +8,7 @@ interface BinaryHexPaneProps {
     hexData?: string;
     sections?: BinarySection[];
     selectedSectionId?: string | null;
+    relatedSectionIds?: string[];
     onSectionSelect?: (sectionId: string | null) => void;
     searchMatches?: number[];
     currentMatchByteIndex?: number;
@@ -39,6 +40,7 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
     hexData = "",
     sections = [],
     selectedSectionId,
+    relatedSectionIds = [],
     onSectionSelect,
     searchMatches = [],
     currentMatchByteIndex,
@@ -223,6 +225,7 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
                 const byte = bytes[index];
                 const section = getSectionForByte(index);
                 const isSelected = section && section.id === selectedSectionId;
+                const isRelated = section && relatedSectionIds.includes(section.id);
                 const isFocused = index === focusedByteIndex;
                 const isSearchMatch = matchSet.has(index);
                 const isCurrentMatch = index === currentMatchByteIndex;
@@ -243,6 +246,7 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
                 }
 
                 const selectedClass = (isSelected && !isCurrentMatch) ? "ring-2 ring-blue-500 z-10 scale-110 shadow-sm font-bold" : "";
+                const relatedClass = (isRelated && !isSelected && !isCurrentMatch) ? "ring-2 ring-blue-300 z-10 shadow-sm" : "";
                 const focusClass = isFocused ? "outline outline-2 outline-offset-1 outline-blue-600" : null;
 
                 rowBytes.push(
@@ -252,7 +256,7 @@ export const BinaryHexPane: React.FC<BinaryHexPaneProps> = ({
                         className={`
                             px-1 rounded cursor-pointer select-none transition-all
                             text-center min-w-[2em] border border-transparent
-                            ${baseColor} ${selectedClass} ${focusClass || ''}
+                            ${baseColor} ${selectedClass} ${relatedClass} ${focusClass || ''}
                             hover:brightness-95
                         `}
                         onClick={() => {

@@ -61,7 +61,12 @@ export default defineConfig({
             },
         },
         {
-            command: 'cd ../backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000',
+            // Backend server command - works on both Windows and Linux
+            // Windows: uses .venv\Scripts\python.exe
+            // Linux/CI: uses .venv/bin/python or system python
+            command: process.platform === 'win32'
+                ? 'cd ../backend && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000'
+                : 'cd ../backend && (test -f .venv/bin/python && .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 || python -m uvicorn app.main:app --host 127.0.0.1 --port 8000)',
             url: 'http://127.0.0.1:8000/docs',
             reuseExistingServer: !isCI,
             timeout: 30 * 1000,

@@ -27,13 +27,17 @@ The Blink Message Playground is deployed and ready to use! No installation requi
 
 The easiest way to explore PyBlink is through the **Blink Message Playground** - a web application that lets you interactively convert messages between all supported formats.
 
+**First-time setup:**
+
+```bash
+# Windows - Install all dependencies
+setup.bat
+```
+
 **Start both servers with one command:**
 
 ```bash
-# Windows (PowerShell)
-.\start.ps1
-
-# Windows (Command Prompt)
+# Windows
 start.bat
 
 # Cross-platform (using Make)

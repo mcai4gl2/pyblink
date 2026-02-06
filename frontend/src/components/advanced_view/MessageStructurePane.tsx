@@ -7,6 +7,7 @@ interface MessageStructurePaneProps {
     onFormatChange: (format: 'json' | 'tag') => void;
     fields?: MessageField[];
     selectedSectionId?: string | null;
+    relatedSectionIds?: string[];
     onFieldSelect?: (sectionId: string | null) => void;
 }
 
@@ -15,6 +16,7 @@ export const MessageStructurePane: React.FC<MessageStructurePaneProps> = ({
     onFormatChange,
     fields = [],
     selectedSectionId,
+    relatedSectionIds = [],
     onFieldSelect
 }) => {
 
@@ -32,6 +34,7 @@ export const MessageStructurePane: React.FC<MessageStructurePaneProps> = ({
 
     const renderField = (field: MessageField, index: number) => {
         const isSelected = field.binarySectionId === selectedSectionId;
+        const isRelated = field.binarySectionId && relatedSectionIds.includes(field.binarySectionId);
         const depth = field.path.split('.').length - 1;
 
         return (
@@ -40,7 +43,7 @@ export const MessageStructurePane: React.FC<MessageStructurePaneProps> = ({
                 id={field.binarySectionId ? `field-${field.binarySectionId}` : undefined}
                 className={`
                     flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors
-                    ${isSelected ? 'bg-blue-100 ring-1 ring-blue-300' : 'hover:bg-gray-100'}
+                    ${isSelected ? 'bg-blue-100 ring-1 ring-blue-300' : isRelated ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-gray-100'}
                 `}
                 style={{ marginLeft: `${depth * 16}px` }}
                 onClick={() => onFieldSelect && onFieldSelect(field.binarySectionId || null)}
